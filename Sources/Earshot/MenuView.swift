@@ -50,8 +50,8 @@ struct MenuView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button { NSApp.activate(); openSettings() } label: { Image(systemName: "gearshape") }
-                .buttonStyle(.borderless).help("Settings")
+            IconButton(icon: "gearshape") { NSApp.activate(); openSettings() }
+                .help("Settings")
         }
     }
 
@@ -145,6 +145,26 @@ private struct PillButton: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut(shortcut.map { KeyboardShortcut($0) })
+        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hover = h } }
+    }
+}
+
+/// A round icon button that lights up under the pointer.
+private struct IconButton: View {
+    let icon: String
+    let action: () -> Void
+    @ViewState private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(hover ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                .frame(width: 30, height: 30)
+                .background(hover ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
         .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hover = h } }
     }
 }
