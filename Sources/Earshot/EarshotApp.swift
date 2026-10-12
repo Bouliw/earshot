@@ -44,6 +44,7 @@ private struct MenuBarLabel: View {
     @Environment(AppState.self) private var state
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Image(systemName: state.recorder.isActive ? "ear.badge.waveform" : "ear")
@@ -51,7 +52,7 @@ private struct MenuBarLabel: View {
                 if on { openWindow(id: "subtitles") } else { dismissWindow(id: "subtitles") }
             }
             .onAppear {
-                if state.demo { for id in state.demoWindows { openWindow(id: id) } }
+                if state.demo { for id in state.demoWindows { if id == "settings" { openSettings() } else { openWindow(id: id) } } }
                 // `--record <bundle ID prefix>`: start right away (testing without clicking).
                 if let i = CommandLine.arguments.firstIndex(of: "--record"), i + 1 < CommandLine.arguments.count,
                    let app = AudioApp.all().first(where: { $0.bundleID.hasPrefix(CommandLine.arguments[i + 1]) }) {

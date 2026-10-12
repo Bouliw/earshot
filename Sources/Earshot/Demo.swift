@@ -68,6 +68,11 @@ enum Demo {
             rec.level = 0.05
             rec.preview = "Third, they have a voice. You can tell a person wrote them, not a committee"
             rec.previewSpeaker = "Sarah Mitchell"
+            for (speaker, text) in lines.suffix(2) + [(rec.previewSpeaker, rec.preview)] {
+                rec.subtitles.speaker = { speaker }
+                rec.subtitles.update(text)
+                rec.subtitles.commit()
+            }
             if CommandLine.arguments.contains("--live") { play(rec) }
         }
 
