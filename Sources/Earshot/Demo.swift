@@ -14,6 +14,29 @@ enum Demo {
         ("David Chen", "And the third one?"),
     ]
 
+    /// `--live`: the last lines are spoken word by word, as in a real session (for the README animation).
+    static func play(_ rec: Recorder) {
+        let all = rec.segments + [Segment(start: rec.segments.last!.end + 3, end: rec.segments.last!.end + 9, speaker: rec.previewSpeaker, text: rec.preview)]
+        rec.segments = Array(all.prefix(6))
+        rec.preview = ""
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            for s in all.dropFirst(6) {
+                rec.previewSpeaker = s.speaker
+                var words: [Substring] = []
+                for word in s.text.split(separator: " ") {
+                    words.append(word)
+                    rec.preview = words.joined(separator: " ")
+                    rec.level = .random(in: 0.02...0.15)
+                    try? await Task.sleep(for: .milliseconds(150))
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+                rec.preview = ""
+                rec.segments.append(s)
+            }
+        }
+    }
+
     static func fill(_ state: AppState) {
         let teams = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.teams2")
         let icon = teams.map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSImage(systemSymbolName: "video", accessibilityDescription: nil)!
@@ -45,6 +68,7 @@ enum Demo {
             rec.level = 0.05
             rec.preview = "Third, they have a voice. You can tell a person wrote them, not a committee"
             rec.previewSpeaker = "Sarah Mitchell"
+            if CommandLine.arguments.contains("--live") { play(rec) }
         }
 
         let day: TimeInterval = 86_400
