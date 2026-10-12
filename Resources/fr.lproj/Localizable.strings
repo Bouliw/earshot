@@ -1,0 +1,79 @@
+/* Menu bar */
+"Transcribing on this Mac" = "Transcription sur ce Mac";
+"Pick an app to transcribe" = "Choisissez une app à transcrire";
+"Settings" = "Réglages";
+"No app is playing sound" = "Aucune app ne joue de son";
+"Join your call: it will show up here." = "Rejoignez votre appel : il apparaîtra ici.";
+"Playing now" = "En lecture";
+"Other apps" = "Autres apps";
+"Playing sound" = "Joue du son";
+"Quiet" = "Silencieuse";
+"Transcribe" = "Transcrire";
+"Include my microphone" = "Inclure mon micro";
+"Also transcribe what you say, under your name." = "Transcrit aussi ce que vous dites, sous votre nom.";
+"Your microphone is included" = "Votre micro est inclus";
+"Library" = "Bibliothèque";
+"Transcript" = "Transcription";
+"Quit" = "Quitter";
+"Finishing…" = "Finalisation…";
+"Recording · %@" = "Enregistrement · %@";
+"Show transcript" = "Voir la transcription";
+"Stop" = "Arrêter";
+"until %@" = "jusqu'à %@";
+
+/* Transcript window */
+"Allow Earshot in Accessibility to see who is speaking." = "Autorisez Earshot dans Accessibilité pour savoir qui parle.";
+"Allow…" = "Autoriser…";
+"Listening…" = "À l'écoute…";
+"Nothing recorded yet" = "Rien d'enregistré pour l'instant";
+"Text appears here as soon as someone speaks." = "Le texte s'affiche ici dès que quelqu'un parle.";
+"Pick an app from the menu bar to start." = "Choisissez une app dans la barre des menus pour commencer.";
+"Search" = "Rechercher";
+"Copy the whole transcript" = "Copier toute la transcription";
+"Stop and save" = "Arrêter et enregistrer";
+"Show in Finder" = "Afficher dans le Finder";
+"Saved" = "Enregistrée";
+"Saving" = "Sauvegarde";
+"No match" = "Aucun résultat";
+"Matches: %lld" = "Résultats : %lld";
+"Back to live" = "Revenir au direct";
+"Speaker" = "Intervenant";
+"speaking" = "parle";
+"Me" = "Moi";
+
+/* Library */
+"All Sessions" = "Toutes les sessions";
+"Folders" = "Dossiers";
+"No sessions" = "Aucune session";
+"Recordings show up here once saved." = "Les enregistrements apparaissent ici une fois sauvegardés.";
+"Select a session" = "Sélectionnez une session";
+"Search transcript" = "Rechercher dans la transcription";
+"Export" = "Exporter";
+"Text (.txt)" = "Texte (.txt)";
+"Subtitles (.srt)" = "Sous-titres (.srt)";
+"1 speaker" = "1 intervenant";
+"%lld speakers" = "%lld intervenants";
+
+/* Settings */
+"App language" = "Langue de l'app";
+"System" = "Système";
+"Takes effect the next time Earshot opens." = "S'applique à la prochaine ouverture d'Earshot.";
+"Spoken language" = "Langue parlée";
+"Automatic" = "Automatique";
+"English" = "Anglais";
+"French" = "Français";
+"Model" = "Modèle";
+"Sessions" = "Sessions";
+"Save to" = "Enregistrer dans";
+"Choose…" = "Choisir…";
+"Each session goes in a folder named after its calendar event, then the date." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date.";
+"Speaker names" = "Noms des intervenants";
+"Turn on Teams live captions automatically" = "Activer automatiquement les sous-titres en direct de Teams";
+"Teams captions tell Earshot who is speaking. Only you see them." = "Les sous-titres de Teams indiquent à Earshot qui parle. Vous seul les voyez.";
+
+/* Errors */
+"No Whisper model found. Put a ggml model in ~/Library/Application Support/Earshot/Models." = "Aucun modèle Whisper trouvé. Placez un modèle ggml dans ~/Library/Application Support/Earshot/Models.";
+"Could not load the model %@." = "Impossible de charger le modèle %@.";
+"Could not capture audio (%@, error %d). Check System Settings › Privacy & Security › Screen & System Audio Recording." = "Impossible de capter le son (%@, erreur %d). Vérifiez Réglages Système › Confidentialité et sécurité › Enregistrement de l'écran et de l'audio système.";
+"Earshot cannot use the microphone. Allow it in System Settings › Privacy & Security › Microphone." = "Earshot ne peut pas utiliser le micro. Autorisez-le dans Réglages Système › Confidentialité et sécurité › Micro.";
+"%@ call" = "Appel %@";

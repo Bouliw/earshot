@@ -1,0 +1,3 @@
+"NSAudioCaptureUsageDescription" = "Earshot écoute l'app que vous choisissez pour la transcrire sur ce Mac.";
+"NSMicrophoneUsageDescription" = "Quand vous cochez « Inclure mon micro », Earshot transcrit aussi ce que vous dites.";
+"NSCalendarsFullAccessUsageDescription" = "Earshot nomme et range chaque session d'après l'événement d'agenda correspondant, et s'arrête quand il est terminé.";

@@ -128,7 +128,7 @@ final class StreamingTranscriber {
         self.language = language
         queue.async { [self] in
             whisper = Whisper.cached(model)
-            if whisper == nil { onError("Could not load the model \(model.lastPathComponent).") }
+            if whisper == nil { onError(String(localized: "Could not load the model \(model.lastPathComponent).")) }
         }
     }
 

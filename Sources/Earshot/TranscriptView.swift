@@ -10,9 +10,9 @@ struct TranscriptWindow: View {
         let rec = state.recorder
         VStack(spacing: 0) {
             if rec.needsAccessibility {
-                Banner(icon: "person.wave.2", text: "Allow Earshot in Accessibility to see who is speaking.", action: "Allow…") { rec.retryAccessibility() }
+                Banner(icon: "person.wave.2", text: Text("Allow Earshot in Accessibility to see who is speaking."), action: "Allow…") { rec.retryAccessibility() }
             }
-            if let error = rec.error { Banner(icon: "exclamationmark.triangle.fill", text: error) }
+            if let error = rec.error { Banner(icon: "exclamationmark.triangle.fill", text: Text(error)) }
             if rec.segments.isEmpty && rec.preview.isEmpty {
                 ContentUnavailableView {
                     Label(rec.isActive ? "Listening…" : "Nothing recorded yet", systemImage: rec.isActive ? "waveform" : "ear")
@@ -25,7 +25,7 @@ struct TranscriptWindow: View {
             }
         }
         .frame(minWidth: 360, minHeight: 280)
-        .navigationTitle(rec.title.isEmpty ? "Transcript" : rec.title)
+        .navigationTitle(rec.title.isEmpty ? String(localized: "Transcript") : rec.title)
         .navigationSubtitle(subtitle)
         .searchable(text: $query, placement: .toolbar, prompt: "Search")
         .toolbar {
@@ -52,8 +52,8 @@ struct TranscriptWindow: View {
     private var subtitle: String {
         let rec = state.recorder
         var parts = [rec.app?.name ?? ""]
-        if rec.state == .idle, !rec.segments.isEmpty { parts.append("Saved") }
-        if let end = rec.eventEnd, rec.isActive { parts.append("until \(end.formatted(date: .omitted, time: .shortened))") }
+        if rec.state == .idle, !rec.segments.isEmpty { parts.append(String(localized: "Saved")) }
+        if let end = rec.eventEnd, rec.isActive { parts.append(String(localized: "until \(end.formatted(date: .omitted, time: .shortened))")) }
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
@@ -76,7 +76,7 @@ private struct StatusPill: View {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 HStack(spacing: 6) {
                     if rec.state == .finishing { ProgressView().controlSize(.mini) } else { PulsingDot() }
-                    Text(rec.state == .finishing ? "Saving" : rec.elapsed.clock).monospacedDigit()
+                    (rec.state == .finishing ? Text("Saving") : Text(rec.elapsed.clock)).monospacedDigit()
                     LevelMeter(level: rec.level)
                 }
                 .font(.callout.weight(.medium))
@@ -108,7 +108,7 @@ struct TranscriptList: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
                 if !query.isEmpty {
-                    Text(turns.isEmpty ? "No match" : "\(turns.count) match\(turns.count > 1 ? "es" : "")")
+                    (turns.isEmpty ? Text("No match") : Text("Matches: \(turns.count)"))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(turns) { turn in
@@ -168,7 +168,7 @@ struct TurnView: View {
             Avatar(name: speaker)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(speaker ?? "Speaker").font(.subheadline.weight(.semibold)).foregroundStyle(SpeakerColor.of(speaker))
+                    (speaker.map { Text($0) } ?? Text("Speaker")).font(.subheadline.weight(.semibold)).foregroundStyle(SpeakerColor.of(speaker))
                     if let time {
                         Text(time.formatted(date: .omitted, time: .shortened)).font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
                     } else if isLive {
@@ -217,14 +217,14 @@ struct Avatar: View {
 
 private struct Banner: View {
     let icon: String
-    let text: String
-    var action: String? = nil
+    let text: Text
+    var action: LocalizedStringKey? = nil
     var perform: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon).foregroundStyle(.orange)
-            Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
+            text.font(.callout).fixedSize(horizontal: false, vertical: true)
             Spacer()
             if let action { Button(action, action: perform).buttonStyle(.glass) }
         }

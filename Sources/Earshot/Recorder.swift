@@ -60,7 +60,7 @@ final class Recorder {
         let folder = SessionStore.newFolder(base: base, group: group)
 
         self.app = app
-        title = event?.title ?? "\(app.name) call"
+        title = event?.title ?? String(localized: "\(app.name) call")
         eventEnd = event?.end
         startedAt = Date()
         segments = []

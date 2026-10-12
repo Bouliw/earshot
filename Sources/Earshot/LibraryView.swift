@@ -97,7 +97,8 @@ private struct SessionDetail: View {
 
     private var speakers: String {
         let names = Set(record.segments.compactMap(\.speaker))
-        return names.isEmpty ? "\(record.appName)" : "\(names.count) speaker\(names.count > 1 ? "s" : "")"
+        if names.isEmpty { return record.appName }
+        return names.count == 1 ? String(localized: "1 speaker") : String(localized: "\(names.count) speakers")
     }
 
     private func export(_ file: String, _ type: UTType) {
