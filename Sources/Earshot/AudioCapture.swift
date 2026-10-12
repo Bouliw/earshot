@@ -219,28 +219,42 @@ final class MicMix {
 
 // MARK: - Format conversion
 
-/// Converts any PCM buffer to 16 kHz mono float samples, the format Whisper wants.
+/// Converts any PCM buffer to 16 kHz mono float samples, the format Whisper wants (or to `output`).
 final class Resampler {
     static let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+    let output: AVAudioFormat
     private let converter: AVAudioConverter
     private let ratio: Double
 
-    init?(from input: AVAudioFormat) {
-        guard let converter = AVAudioConverter(from: input, to: Self.format) else { return nil }
+    init?(from input: AVAudioFormat, to output: AVAudioFormat = Resampler.format) {
+        guard let converter = AVAudioConverter(from: input, to: output) else { return nil }
         converter.downmix = true
         self.converter = converter
-        ratio = 16_000 / input.sampleRate
+        self.output = output
+        ratio = output.sampleRate / input.sampleRate
     }
 
-    func callAsFunction(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+    /// 16 kHz samples as a buffer, for AVFoundation APIs.
+    static func buffer(_ samples: [Float]) -> AVAudioPCMBuffer? {
+        guard !samples.isEmpty, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)) else { return nil }
+        buffer.frameLength = buffer.frameCapacity
+        samples.withUnsafeBufferPointer { buffer.floatChannelData![0].update(from: $0.baseAddress!, count: samples.count) }
+        return buffer
+    }
+
+    func convert(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         guard buffer.frameLength > 0,
-              let out = AVAudioPCMBuffer(pcmFormat: Self.format, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32) else { return nil }
+              let out = AVAudioPCMBuffer(pcmFormat: output, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32) else { return nil }
         var fed = false
         converter.convert(to: out, error: nil) { _, status in
             if fed { status.pointee = .noDataNow; return nil }
             fed = true; status.pointee = .haveData; return buffer
         }
-        guard out.frameLength > 0, let data = out.floatChannelData else { return nil }
+        return out.frameLength > 0 ? out : nil
+    }
+
+    func callAsFunction(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+        guard let out = convert(buffer), let data = out.floatChannelData else { return nil }
         return Array(UnsafeBufferPointer(start: data[0], count: Int(out.frameLength)))
     }
 }
