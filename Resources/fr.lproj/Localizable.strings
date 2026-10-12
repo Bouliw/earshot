@@ -68,6 +68,8 @@
 "Choose…" = "Choisir…";
 "Each session goes in a folder named after its calendar event, then the date." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date.";
 "Speaker names" = "Noms des intervenants";
+"Accessibility" = "Accessibilité";
+"Allowed" = "Autorisé";
 "Turn on Teams live captions automatically" = "Activer automatiquement les sous-titres en direct de Teams";
 "Teams captions tell Earshot who is speaking. Only you see them." = "Les sous-titres de Teams indiquent à Earshot qui parle. Vous seul les voyez.";
 

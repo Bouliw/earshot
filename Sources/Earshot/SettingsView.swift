@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage(Pref.model) private var model = ""
     @AppStorage(Pref.folder) private var folder = Pref.defaultFolder
     @AppStorage(Pref.autoCaptions) private var autoCaptions = true
+    @ViewState private var trusted = TeamsCaptions.isTrusted
     private let models = WhisperModel.installed()
 
     var body: some View {
@@ -47,6 +48,13 @@ struct SettingsView: View {
                 Text("Each session goes in a folder named after its calendar event, then the date.").foregroundStyle(.secondary)
             }
             Section {
+                LabeledContent("Accessibility") {
+                    if trusted {
+                        Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    } else {
+                        Button("Allow…") { TeamsCaptions.requestTrust() }
+                    }
+                }
                 Toggle("Turn on Teams live captions automatically", isOn: $autoCaptions)
             } header: {
                 Text("Speaker names")
@@ -55,6 +63,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .task {
+            // The grant happens in System Settings, so watch for it while this window is open.
+            while !Task.isCancelled { trusted = TeamsCaptions.isTrusted; try? await Task.sleep(for: .seconds(1)) }
+        }
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
     }
