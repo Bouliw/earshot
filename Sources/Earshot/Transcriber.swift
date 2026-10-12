@@ -85,7 +85,8 @@ final class Whisper {
         guard n == 0 else { return [] }
         return (0..<whisper_full_n_segments(ctx)).compactMap { i in
             let text = String(cString: whisper_full_get_segment_text(ctx, i)).trimmingCharacters(in: .whitespaces)
-            guard !text.isEmpty else { return nil }
+            // A chime or a click can come out as "Thank you."; Whisper itself rates those as probably not speech.
+            guard !text.isEmpty, whisper_full_get_segment_no_speech_prob(ctx, i) < 0.6 else { return nil }
             return (Double(whisper_full_get_segment_t0(ctx, i)) / 100, Double(whisper_full_get_segment_t1(ctx, i)) / 100, text)
         }
     }
