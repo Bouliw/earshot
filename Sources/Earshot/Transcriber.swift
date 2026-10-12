@@ -42,7 +42,7 @@ struct WhisperModel: Hashable, Identifiable {
 
 /// Thin wrapper over a whisper.cpp context. Not thread-safe: use from one queue.
 final class Whisper {
-    private let ctx: OpaquePointer
+    private var ctx: OpaquePointer?
 
     init?(model: URL) {
         var params = whisper_context_default_params()
@@ -52,7 +52,17 @@ final class Whisper {
         self.ctx = ctx
     }
 
-    deinit { whisper_free(ctx) }
+    deinit { if let ctx { whisper_free(ctx) } }
+
+    /// ggml aborts at exit if a Metal context is still alive, so the model is freed first. Registered after the first
+    /// load: exit handlers run in reverse order, so it comes before the one ggml registers while loading.
+    private static let freeAtExit: Void = { atexit { Whisper.releaseCache() } }()
+
+    static func releaseCache() {
+        cacheLock.lock(); defer { cacheLock.unlock() }
+        if let ctx = cache?.whisper.ctx { whisper_free(ctx); cache?.whisper.ctx = nil }
+        cache = nil
+    }
 
     /// Loading takes a few seconds, so the last model stays in memory between sessions.
     private static var cache: (url: URL, whisper: Whisper)?
@@ -62,12 +72,14 @@ final class Whisper {
         if let cache, cache.url == url { return cache.whisper }
         cache = nil
         guard let w = Whisper(model: url) else { return nil }
+        _ = freeAtExit
         cache = (url, w)
         return w
     }
 
     /// Segments with times relative to the start of `samples` (16 kHz mono).
     func transcribe(_ samples: [Float], language: String, quick: Bool = false) -> [(start: Double, end: Double, text: String)] {
+        guard let ctx else { return [] }
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)
         params.n_threads = Int32(min(8, ProcessInfo.processInfo.activeProcessorCount))
         params.no_context = true          // a prompt from the previous block caused repetitions in the prototype
