@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
@@ -9,11 +10,21 @@ struct SettingsView: View {
     @AppStorage(Pref.subtitles) private var subtitles = false
     @AppStorage(Pref.subtitleSize) private var subtitleSize = 24.0
     @ViewState private var trusted = TeamsCaptions.isTrusted
+    @ViewState private var openAtLogin = SMAppService.mainApp.status == .enabled
     private let models = WhisperModel.installed()
 
     var body: some View {
         Form {
             Section {
+                Toggle("Open at login", isOn: $openAtLogin)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: openAtLogin) { _, on in
+                        do {
+                            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                        } catch {
+                            openAtLogin = SMAppService.mainApp.status == .enabled
+                        }
+                    }
                 Picker("App language", selection: $interfaceLanguage) {
                     Text("System").tag("system")
                     Text(verbatim: "English").tag("en")
