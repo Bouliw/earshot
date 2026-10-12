@@ -82,11 +82,11 @@ private struct SessionDetail: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
-                    Button("Text (.txt)") { export("Transcript.txt", .plainText) }
-                    Button("Markdown (.md)") { export("Transcript.md", UTType(filenameExtension: "md") ?? .plainText) }
-                    Button("Subtitles (.srt)") { export("Transcript.srt", UTType(filenameExtension: "srt") ?? .plainText) }
+                    Button("Text (.txt)") { export("txt", .plainText, text: SessionStore.text(record)) }
+                    Button("Markdown (.md)") { export("md", UTType(filenameExtension: "md") ?? .plainText, text: SessionStore.markdown(record)) }
+                    Button("Subtitles (.srt)") { export("srt", UTType(filenameExtension: "srt") ?? .plainText, text: SessionStore.srt(record)) }
                     Divider()
-                    Button("Audio (.m4a)") { export("Audio.m4a", .mpeg4Audio) }
+                    Button("Audio (.m4a)") { export("m4a", .mpeg4Audio) }
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
@@ -101,14 +101,18 @@ private struct SessionDetail: View {
         return names.count == 1 ? String(localized: "1 speaker") : String(localized: "\(names.count) speakers")
     }
 
-    private func export(_ file: String, _ type: UTType) {
-        guard let source = record.folder?.appending(path: file) else { return }
+    /// Saves `text`, or the session's audio when there is no text.
+    private func export(_ ext: String, _ type: UTType, text: String? = nil) {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(record.title) — \(record.startedAt.formatted(.iso8601.year().month().day())).\(source.pathExtension)"
+        panel.nameFieldStringValue = "\(record.title) — \(record.startedAt.formatted(.iso8601.year().month().day())).\(ext)"
         panel.allowedContentTypes = [type]
         guard panel.runModal() == .OK, let target = panel.url else { return }
         try? FileManager.default.removeItem(at: target)
-        try? FileManager.default.copyItem(at: source, to: target)
+        if let text {
+            try? text.write(to: target, atomically: true, encoding: .utf8)
+        } else if let audio = record.folder?.appending(path: "Audio.m4a") {
+            try? FileManager.default.copyItem(at: audio, to: target)
+        }
     }
 }
 

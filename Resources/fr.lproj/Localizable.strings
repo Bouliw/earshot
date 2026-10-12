@@ -67,7 +67,7 @@
 "Sessions" = "Sessions";
 "Save to" = "Enregistrer dans";
 "Choose…" = "Choisir…";
-"Each session goes in a folder named after its calendar event, then the date." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date.";
+"Each session goes in a folder named after its calendar event, then the date. The transcript is a plain text file, so a folder indexer such as doc-indexer can search it with your documents." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date. La transcription est un simple fichier texte : un indexeur de dossiers comme doc-indexer peut la chercher avec vos documents.";
 "Live subtitles" = "Sous-titres en direct";
 "Show live subtitles" = "Afficher les sous-titres en direct";
 "Fast" = "Rapide";

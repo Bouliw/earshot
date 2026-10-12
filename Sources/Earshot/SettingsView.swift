@@ -59,7 +59,7 @@ struct SettingsView: View {
             } header: {
                 Text("Sessions")
             } footer: {
-                Text("Each session goes in a folder named after its calendar event, then the date.").foregroundStyle(.secondary)
+                Text("Each session goes in a folder named after its calendar event, then the date. The transcript is a plain text file, so a folder indexer such as doc-indexer can search it with your documents.").foregroundStyle(.secondary)
             }
             Section {
                 LabeledContent("Accessibility") {

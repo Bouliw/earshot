@@ -310,9 +310,8 @@ enum SessionStore {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try? encoder.encode(r).write(to: folder.appending(path: recordName), options: .atomic)
+        // One text file per session, so a folder indexer finds each class once; Markdown and subtitles are exports.
         try? text(r).write(to: folder.appending(path: "Transcript.txt"), atomically: true, encoding: .utf8)
-        try? markdown(r).write(to: folder.appending(path: "Transcript.md"), atomically: true, encoding: .utf8)
-        try? srt(r).write(to: folder.appending(path: "Transcript.srt"), atomically: true, encoding: .utf8)
     }
 
     static func loadAll(base: URL) -> [SessionRecord] {
