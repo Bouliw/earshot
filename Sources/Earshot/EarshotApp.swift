@@ -21,6 +21,14 @@ struct EarshotApp: App {
         .defaultPosition(.topTrailing)
         .windowToolbarStyle(.unifiedCompact)
 
+        Window("Live subtitles", id: "subtitles") {
+            SubtitlesView().environment(state)
+        }
+        .windowStyle(.plain)
+        .windowResizability(.contentSize)
+        .windowBackgroundDragBehavior(.enabled)
+        .defaultPosition(.bottom)
+
         Window("Library", id: "library") {
             LibraryView().environment(state)
         }
@@ -35,9 +43,13 @@ struct EarshotApp: App {
 private struct MenuBarLabel: View {
     @Environment(AppState.self) private var state
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         Image(systemName: state.recorder.isActive ? "ear.badge.waveform" : "ear")
+            .onChange(of: state.recorder.subtitlesOn) { _, on in
+                if on { openWindow(id: "subtitles") } else { dismissWindow(id: "subtitles") }
+            }
             .onAppear {
                 if state.demo { for id in state.demoWindows { openWindow(id: id) } }
                 // `--record <bundle ID prefix>`: start right away (testing without clicking).

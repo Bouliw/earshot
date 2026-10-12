@@ -9,6 +9,9 @@ enum Pref {
     static let folder = "saveFolder"
     static let autoCaptions = "autoCaptions"
     static let includeMic = "includeMic"
+    static let subtitles = "subtitles"
+    static let subtitleEngine = "subtitleEngine"  // SubtitleEngineKind
+    static let subtitleSize = "subtitleSize"
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
 }
 
@@ -30,6 +33,9 @@ final class Recorder {
     var error: String?
     var needsAccessibility = false
     var onFinished: (SessionRecord) -> Void = { _ in }
+    /// Live subtitles, shown in their own window while `subtitlesOn`.
+    let subtitles = SubtitleFeed()
+    var subtitlesOn = false
 
     private var tap: AudioTap?
     private var transcriber: StreamingTranscriber?
@@ -41,6 +47,17 @@ final class Recorder {
     private var watchdog: Timer?
     private var lastSound = Date()
     private var record: SessionRecord?
+    private let subtitleSink = SubtitleSink()
+    private var subtitleKind: SubtitleEngineKind?
+    private var subtitleGeneration = 0
+
+    init() {
+        subtitles.speaker = { [weak self] in self?.timeline.latest }
+        // The switch and the engine live in Settings (and the window's close button): follow them during a session.
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.refreshSubtitles() }
+        }
+    }
 
     var isActive: Bool { state != .idle }
     var includesMic: Bool { microphone != nil }
@@ -97,13 +114,12 @@ final class Recorder {
             audioFile = try AVAudioFile(forWriting: folder.appending(path: "Audio.m4a"), settings: [
                 AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 48_000,
             ], commonFormat: .pcmFormatFloat32, interleaved: false)
-            let file = audioFile
+            let file = audioFile, sink = subtitleSink
             tap = try AudioTap(processes: app.processes) { samples in
                 transcriber.append(samples)
+                sink.append(samples)
                 let samples = mix?.mixApp(samples) ?? samples
-                guard let file, let buffer = AVAudioPCMBuffer(pcmFormat: Resampler.format, frameCapacity: AVAudioFrameCount(samples.count)) else { return }
-                buffer.frameLength = buffer.frameCapacity
-                samples.withUnsafeBufferPointer { buffer.floatChannelData![0].update(from: $0.baseAddress!, count: samples.count) }
+                guard let file, let buffer = Resampler.buffer(samples) else { return }
                 try? file.write(from: buffer)
             }
             if let mix, let micTranscriber {
@@ -117,6 +133,7 @@ final class Recorder {
 
         if TeamsCaptions.handles(app.bundleID) { startCaptions(pid: app.pid) }
         state = .recording
+        refreshSubtitles()
         watchdog = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.check() } }
         save()
     }
@@ -126,6 +143,7 @@ final class Recorder {
         state = .finishing
         tap?.stop()
         tap = nil
+        refreshSubtitles()
         microphone?.stop()
         microphone = nil
         watchdog?.invalidate()
@@ -150,6 +168,31 @@ final class Recorder {
     func retryAccessibility() {
         TeamsCaptions.requestTrust()
         if let app, TeamsCaptions.isTrusted { startCaptions(pid: app.pid) }
+    }
+
+    /// Starts, switches or stops the subtitle engine to match the settings and the recording state.
+    func refreshSubtitles() {
+        let defaults = UserDefaults.standard
+        let kind = SubtitleEngineKind(rawValue: defaults.string(forKey: Pref.subtitleEngine) ?? "") ?? .apple
+        let wanted = state == .recording && defaults.bool(forKey: Pref.subtitles)
+        if wanted && subtitlesOn && kind == subtitleKind { return }
+        subtitleSink.swap(nil)?.stop()
+        subtitleGeneration += 1
+        subtitlesOn = wanted
+        subtitleKind = wanted ? kind : nil
+        guard wanted else { return }
+        subtitles.clear()
+        let generation = subtitleGeneration, feed = subtitles
+        let language = defaults.string(forKey: Pref.language) ?? "auto"
+        Task {
+            do {
+                let engine: SubtitleEngine = kind == .kyutai ? try KyutaiSubtitles(feed: feed) : try await AppleSubtitles(language: language, feed: feed)
+                // Settings may have changed while the engine was starting.
+                if generation == subtitleGeneration { subtitleSink.swap(engine) } else { engine.stop() }
+            } catch {
+                if generation == subtitleGeneration { feed.error = error.localizedDescription }
+            }
+        }
     }
 
     private func startCaptions(pid: pid_t) {
