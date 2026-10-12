@@ -93,8 +93,22 @@ struct MenuView: View {
                 PillButton("Transcript", icon: "text.bubble") { show("transcript") }
             }
             Spacer()
-            PillButton("Quit", icon: "power", shortcut: "q") { state.recorder.stop(); NSApp.terminate(nil) }
+            PillButton("Quit", icon: "power", shortcut: "q") { quit() }
                 .help("Quit Earshot (⌘Q)")
+        }
+    }
+
+    /// Stops a running recording, lets it save its transcript, then quits.
+    private func quit() {
+        let recorder = state.recorder
+        recorder.stop()
+        Task { @MainActor in
+            let deadline = Date.now.addingTimeInterval(15)
+            while recorder.isActive && Date.now < deadline { try? await Task.sleep(for: .milliseconds(100)) }
+            NSApp.terminate(nil)
+            // `terminate` can be held back while a panel or window is busy; never leave the app running.
+            try? await Task.sleep(for: .seconds(1))
+            exit(0)
         }
     }
 
