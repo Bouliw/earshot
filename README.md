@@ -56,7 +56,7 @@ macOS asks for each permission the first time Earshot needs it:
 | --- | --- | --- |
 | System Audio Recording | First transcription | Hearing the app you pick. Required |
 | Calendars | First time you open the menu | Naming and filing sessions after the calendar event |
-| Accessibility | First Teams call | Reading Teams live captions for speaker names. Turn Earshot on in System Settings › Privacy & Security › Accessibility |
+| Device Control and Data Access (Accessibility before macOS 27) | First Teams call | Reading Teams live captions for speaker names. Turn Earshot on in System Settings › Privacy & Security › Device Control and Data Access |
 | Microphone | Only if you tick "Include my microphone" | Transcribing your own voice |
 
 Earshot works without the optional ones: sessions are then named after the app, and lines have no speaker names.

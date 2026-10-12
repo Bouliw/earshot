@@ -10,7 +10,7 @@ struct TranscriptWindow: View {
         let rec = state.recorder
         VStack(spacing: 0) {
             if rec.needsAccessibility {
-                Banner(icon: "person.wave.2", text: Text("Allow Earshot in Accessibility to see who is speaking."), action: "Allow…") { rec.retryAccessibility() }
+                Banner(icon: "person.wave.2", text: Text("Allow Earshot in \(TeamsCaptions.settingName) to see who is speaking."), action: "Allow…") { rec.retryAccessibility() }
             }
             if let error = rec.error { Banner(icon: "exclamationmark.triangle.fill", text: Text(error)) }
             if rec.segments.isEmpty && rec.preview.isEmpty {

@@ -23,7 +23,7 @@
 "until %@" = "jusqu'à %@";
 
 /* Transcript window */
-"Allow Earshot in Accessibility to see who is speaking." = "Autorisez Earshot dans Accessibilité pour savoir qui parle.";
+"Allow Earshot in %@ to see who is speaking." = "Autorisez Earshot dans %@ pour savoir qui parle.";
 "Allow…" = "Autoriser…";
 "Listening…" = "À l'écoute…";
 "Nothing recorded yet" = "Rien d'enregistré pour l'instant";
@@ -88,6 +88,7 @@
 "Turn off live subtitles" = "Désactiver les sous-titres en direct";
 "Speaker names" = "Noms des intervenants";
 "Accessibility" = "Accessibilité";
+"Device Control and Data Access" = "Contrôle de l’appareil et accès aux données";
 "Allowed" = "Autorisé";
 "Turn on Teams live captions automatically" = "Activer automatiquement les sous-titres en direct de Teams";
 "Teams captions tell Earshot who is speaking. Only you see them." = "Les sous-titres de Teams indiquent à Earshot qui parle. Vous seul les voyez.";

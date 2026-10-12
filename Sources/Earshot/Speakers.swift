@@ -27,6 +27,11 @@ final class TeamsCaptions {
 
     static var isTrusted: Bool { AXIsProcessTrusted() }
 
+    /// Where System Settings lists this permission (Privacy & Security): renamed in macOS 27.
+    static var settingName: String {
+        if #available(macOS 27, *) { String(localized: "Device Control and Data Access") } else { String(localized: "Accessibility") }
+    }
+
     static func requestTrust() {
         AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
     }

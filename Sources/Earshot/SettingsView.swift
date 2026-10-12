@@ -62,7 +62,7 @@ struct SettingsView: View {
                 Text("Each session goes in a folder named after its calendar event, then the date. The transcript is a plain text file, so a folder indexer such as doc-indexer can search it with your documents.").foregroundStyle(.secondary)
             }
             Section {
-                LabeledContent("Accessibility") {
+                LabeledContent(TeamsCaptions.settingName) {
                     if trusted {
                         Label("Allowed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                     } else {

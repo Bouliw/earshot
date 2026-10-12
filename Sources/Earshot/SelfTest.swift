@@ -50,6 +50,7 @@ enum SelfTest {
             precondition(String(localized: "Could not capture audio (\(step), error \(status)). Check System Settings › Privacy & Security › Screen & System Audio Recording.", bundle: fr).hasPrefix("Impossible"))
             precondition(String(localized: "Could not load the model \(name).", bundle: fr) == "Impossible de charger le modèle Teams.")
             precondition(String(localized: "Install (\(name))", bundle: fr) == "Installer (Teams)")
+            precondition(String(localized: "Allow Earshot in \(name) to see who is speaking.", bundle: fr) == "Autorisez Earshot dans Teams pour savoir qui parle.")
             precondition(String(localized: "High subtitles stopped: \(name)", bundle: fr) == "Les sous-titres Élevé se sont arrêtés : Teams")
         }
         print("checks passed")
