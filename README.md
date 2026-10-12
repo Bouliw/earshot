@@ -9,8 +9,10 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 - **One click.** The menu bar lists the apps playing sound right now. Click one to start.
 - **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript. It works with the Mac muted.
 - **Live text.** Lines appear a moment after they are spoken, and the sentence in progress writes itself out. Scroll up and the view stays put until you jump back to live.
+- **Your voice too, if you want.** Tick "Include my microphone" and what you say is transcribed under your name. The mic is muted while the app is talking, so speaker echo is not transcribed twice.
 - **Who said what.** In Microsoft Teams, names come from Teams' own live captions, read through the accessibility API. Earshot can turn the captions on for you.
 - **Filed by calendar event.** Each session is saved under the name of the calendar event it belongs to, then the date. Recording stops when the call ends, but not during a break before the event is over.
+- **English or French.** The interface follows the system language, or pick one in Settings. Transcription works in either language, or detects it.
 - **Exports.** Every session folder holds `Transcript.txt`, `Transcript.md`, `Transcript.srt` and `Audio.m4a`, kept up to date while recording.
 
 ## How it works
@@ -42,7 +44,7 @@ scripts/build.sh --install
 
 This builds `build/Earshot.app` and copies it to `/Applications`.
 
-On first use macOS asks for three permissions: **System Audio Recording** (to hear the app), **Calendars** (to name sessions) and **Accessibility** (for Teams speaker names).
+On first use macOS asks for permissions: **System Audio Recording** (to hear the app), **Calendars** (to name sessions), **Accessibility** (for Teams speaker names) and, only if you include it, **Microphone**.
 
 To check the transcription pipeline on an audio file without a call:
 
