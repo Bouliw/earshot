@@ -19,6 +19,21 @@ enum SelfTest {
         precondition(StreamingTranscriber.isNoise("[BLANK_AUDIO]") && !StreamingTranscriber.isNoise("Thank you."))
         let turns = Turn.group([Segment(start: 0, end: 2, speaker: "A", text: "Hi."), Segment(start: 2, end: 4, speaker: "A", text: "Yes."), Segment(start: 4, end: 5, speaker: "B", text: "Ok.")])
         precondition(turns.count == 2 && turns[0].text == "Hi. Yes.")
+        let talking = MicMix()
+        _ = talking.mixApp([Float](repeating: 0.1, count: 160))
+        precondition(talking.gateMic([0.2, 0.2]) == [0, 0])        // app talking: mic muted (echo)
+        let quiet = MicMix()
+        precondition(quiet.gateMic([0.2, 0.2]) == [0.2, 0.2])
+        precondition(quiet.mixApp([0, 0, 0]) == [0.2, 0.2, 0])    // mic lands in the saved audio
+        // Interpolated keys must match the French table (run from the built app, where fr.lproj exists).
+        if let path = Bundle.main.path(forResource: "fr", ofType: "lproj"), let fr = Bundle(path: path) {
+            let name = "Teams", step = "tap", status = OSStatus(-1)
+            precondition(String(localized: "\(name) call", bundle: fr) == "Appel Teams")
+            precondition(String(localized: "\(3) speakers", bundle: fr) == "3 intervenants")
+            precondition(String(localized: "until \(name)", bundle: fr) == "jusqu'à Teams")
+            precondition(String(localized: "Could not capture audio (\(step), error \(status)). Check System Settings › Privacy & Security › Screen & System Audio Recording.", bundle: fr).hasPrefix("Impossible"))
+            precondition(String(localized: "Could not load the model \(name).", bundle: fr) == "Impossible de charger le modèle Teams.")
+        }
         print("checks passed")
     }
 
@@ -29,10 +44,10 @@ enum SelfTest {
         let file = try! AVAudioFile(forReading: URL(filePath: args[i + 1]))
         let model = WhisperModel.preferred(i + 2 < args.count ? args[i + 2] : "")!
         print("model: \(model.name)")
-        let pcm = AVAudioPCMBuffer(pcmFormat: AudioTap.outputFormat, frameCapacity: AVAudioFrameCount(Double(file.length) * 16_000 / file.fileFormat.sampleRate) + 1)!
+        let pcm = AVAudioPCMBuffer(pcmFormat: Resampler.format, frameCapacity: AVAudioFrameCount(Double(file.length) * 16_000 / file.fileFormat.sampleRate) + 1)!
         let source = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length))!
         try! file.read(into: source)
-        let converter = AVAudioConverter(from: file.processingFormat, to: AudioTap.outputFormat)!
+        let converter = AVAudioConverter(from: file.processingFormat, to: Resampler.format)!
         var fed = false
         converter.convert(to: pcm, error: nil) { _, status in
             if fed { status.pointee = .endOfStream; return nil }

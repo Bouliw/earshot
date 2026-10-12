@@ -104,7 +104,9 @@ final class StreamingTranscriber {
 
     private var whisper: Whisper?
     private let language: String
-    private let queue = DispatchQueue(label: "earshot.whisper", qos: .userInitiated)
+    /// Shared: the app and the microphone streams use the same whisper.cpp context, which is not thread-safe.
+    private static let queue = DispatchQueue(label: "earshot.whisper", qos: .userInitiated)
+    private var queue: DispatchQueue { Self.queue }
     private let lock = NSLock()
 
     // Guarded by `lock`.

@@ -89,15 +89,12 @@ final class AudioTap {
     private var procID: AudioDeviceIOProcID?
     private let description: CATapDescription
     private let queue = DispatchQueue(label: "earshot.audio")
-    private var converter: AVAudioConverter?
-    private let inputFormat: AVAudioFormat
-    static let outputFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
 
     enum Failure: LocalizedError {
         case coreAudio(String, OSStatus)
         var errorDescription: String? {
             switch self {
-            case let .coreAudio(step, status): "Could not capture audio (\(step), error \(status)). Check System Settings › Privacy & Security › Screen & System Audio Recording."
+            case let .coreAudio(step, status): String(localized: "Could not capture audio (\(step), error \(status)). Check System Settings › Privacy & Security › Screen & System Audio Recording.")
             }
         }
     }
@@ -110,8 +107,8 @@ final class AudioTap {
         guard status == noErr else { throw Failure.coreAudio("tap", status) }
 
         var asbd: AudioStreamBasicDescription = scalarProperty(tapID, kAudioTapPropertyFormat, AudioStreamBasicDescription())
-        inputFormat = AVAudioFormat(streamDescription: &asbd) ?? AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
-        converter = AVAudioConverter(from: inputFormat, to: Self.outputFormat)
+        let format = AVAudioFormat(streamDescription: &asbd) ?? AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let resample = Resampler(from: format)
 
         let outputDevice: AudioObjectID = scalarProperty(systemObject, kAudioHardwarePropertyDefaultSystemOutputDevice, AudioObjectID(0))
         let outputUID = stringProperty(outputDevice, kAudioDevicePropertyDeviceUID)
@@ -128,10 +125,9 @@ final class AudioTap {
         status = AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID)
         guard status == noErr else { AudioHardwareDestroyProcessTap(tapID); throw Failure.coreAudio("aggregate device", status) }
 
-        let format = inputFormat
-        status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { [weak self] _, input, _, _, _ in
-            guard let self, let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil) else { return }
-            if let samples = self.convert(buffer) { onSamples(samples) }
+        status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, _, _, _ in
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil) else { return }
+            if let samples = resample?(buffer) { onSamples(samples) }
         }
         guard status == noErr else { stop(); throw Failure.coreAudio("IO proc", status) }
         status = AudioDeviceStart(aggregateID, procID)
@@ -146,19 +142,6 @@ final class AudioTap {
         AudioObjectSetPropertyData(tapID, &a, 0, nil, UInt32(MemoryLayout<CATapDescription>.size), &d)
     }
 
-    private func convert(_ buffer: AVAudioPCMBuffer) -> [Float]? {
-        guard let converter, buffer.frameLength > 0 else { return nil }
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * 16_000 / inputFormat.sampleRate) + 32
-        guard let out = AVAudioPCMBuffer(pcmFormat: Self.outputFormat, frameCapacity: capacity) else { return nil }
-        var fed = false
-        converter.convert(to: out, error: nil) { _, status in
-            if fed { status.pointee = .noDataNow; return nil }
-            fed = true; status.pointee = .haveData; return buffer
-        }
-        guard out.frameLength > 0, let data = out.floatChannelData else { return nil }
-        return Array(UnsafeBufferPointer(start: data[0], count: Int(out.frameLength)))
-    }
-
     func stop() {
         if aggregateID != kAudioObjectUnknown {
             AudioDeviceStop(aggregateID, procID)
@@ -170,4 +153,94 @@ final class AudioTap {
     }
 
     deinit { stop() }
+}
+
+// MARK: - Microphone
+
+/// The default input device, for "Include my microphone".
+final class Microphone {
+    private let engine = AVAudioEngine()
+
+    enum Failure: LocalizedError {
+        case denied
+        var errorDescription: String? { String(localized: "Earshot cannot use the microphone. Allow it in System Settings › Privacy & Security › Microphone.") }
+    }
+
+    static func requestAccess() async -> Bool { await AVCaptureDevice.requestAccess(for: .audio) }
+
+    /// How the user appears in transcripts: their macOS account name.
+    static var speakerName: String { NSFullUserName().isEmpty ? String(localized: "Me") : NSFullUserName() }
+
+    init(onSamples: @escaping ([Float]) -> Void) throws {
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        let resample = Resampler(from: format)
+        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
+            if let samples = resample?(buffer) { onSamples(samples) }
+        }
+        try engine.start()
+    }
+
+    func stop() {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+    }
+}
+
+/// Puts the microphone into the saved audio, and mutes it while the app is talking, so speaker echo
+/// is not transcribed a second time under the user's name. With headphones the gate never triggers.
+final class MicMix {
+    private let lock = NSLock()
+    private var pending: [Float] = []
+    private var appTalkingUntil = Date.distantPast
+    var speechLevel: Float = 0.004
+
+    /// App audio in, app + microphone out (for the saved file).
+    func mixApp(_ samples: [Float]) -> [Float] {
+        let loud = samples.contains { abs($0) > speechLevel * 2 }
+        lock.lock(); defer { lock.unlock() }
+        if loud { appTalkingUntil = Date().addingTimeInterval(0.5) }
+        var out = samples
+        let n = min(out.count, pending.count)
+        for i in 0..<n { out[i] += pending[i] }
+        pending.removeFirst(n)
+        return out
+    }
+
+    /// Microphone in, what the transcriber should hear out (silence while the app talks).
+    func gateMic(_ samples: [Float]) -> [Float] {
+        lock.lock(); defer { lock.unlock() }
+        let out = Date() < appTalkingUntil ? [Float](repeating: 0, count: samples.count) : samples
+        pending += out
+        if pending.count > 16_000 { pending.removeFirst(pending.count - 16_000) }  // keep the two clocks within 1 s
+        return out
+    }
+}
+
+// MARK: - Format conversion
+
+/// Converts any PCM buffer to 16 kHz mono float samples, the format Whisper wants.
+final class Resampler {
+    static let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+    private let converter: AVAudioConverter
+    private let ratio: Double
+
+    init?(from input: AVAudioFormat) {
+        guard let converter = AVAudioConverter(from: input, to: Self.format) else { return nil }
+        converter.downmix = true
+        self.converter = converter
+        ratio = 16_000 / input.sampleRate
+    }
+
+    func callAsFunction(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+        guard buffer.frameLength > 0,
+              let out = AVAudioPCMBuffer(pcmFormat: Self.format, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32) else { return nil }
+        var fed = false
+        converter.convert(to: out, error: nil) { _, status in
+            if fed { status.pointee = .noDataNow; return nil }
+            fed = true; status.pointee = .haveData; return buffer
+        }
+        guard out.frameLength > 0, let data = out.floatChannelData else { return nil }
+        return Array(UnsafeBufferPointer(start: data[0], count: Int(out.frameLength)))
+    }
 }

@@ -26,6 +26,8 @@
 	<string>public.app-category.productivity</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Earshot listens to the app you pick so it can transcribe it on this Mac.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>When you choose "Include my microphone", Earshot transcribes what you say too.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Earshot names and files each session after the calendar event it belongs to, and stops when the event is over.</string>
 	<key>NSHumanReadableCopyright</key>

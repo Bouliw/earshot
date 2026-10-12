@@ -6,6 +6,7 @@ struct MenuView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @ViewState private var showQuiet = false
+    @AppStorage(Pref.includeMic) private var includeMic = false
 
     private var playing: [AudioApp] { state.apps.filter(\.isPlaying) }
     private var quiet: [AudioApp] { state.apps.filter { !$0.isPlaying } }
@@ -18,6 +19,9 @@ struct MenuView: View {
             } else {
                 if let event = state.event { EventChip(title: event.title, end: event.end) }
                 appList
+                Toggle("Include my microphone", isOn: $includeMic)
+                    .toggleStyle(.checkbox).font(.callout).padding(.horizontal, 8)
+                    .help("Also transcribe what you say, under your name.")
             }
             if let error = state.recorder.error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -200,6 +204,7 @@ private struct RecordingCard: View {
                             } else {
                                 PulsingDot()
                                 Text("Recording · \(rec.elapsed.clock)").monospacedDigit()
+                                if rec.includesMic { Image(systemName: "mic.fill").help("Your microphone is included") }
                             }
                         }
                         .font(.caption).foregroundStyle(.secondary)

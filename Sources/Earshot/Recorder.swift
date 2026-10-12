@@ -8,6 +8,7 @@ enum Pref {
     static let model = "modelPath"
     static let folder = "saveFolder"
     static let autoCaptions = "autoCaptions"
+    static let includeMic = "includeMic"
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
 }
 
@@ -33,6 +34,8 @@ final class Recorder {
     private var tap: AudioTap?
     private var transcriber: StreamingTranscriber?
     private var captions: TeamsCaptions?
+    private var microphone: Microphone?
+    private var micTranscriber: StreamingTranscriber?
     private var timeline = SpeakerTimeline()
     private var audioFile: AVAudioFile?
     private var watchdog: Timer?
@@ -40,13 +43,14 @@ final class Recorder {
     private var record: SessionRecord?
 
     var isActive: Bool { state != .idle }
+    var includesMic: Bool { microphone != nil }
     var elapsed: TimeInterval { Date().timeIntervalSince(startedAt) }
 
     func start(_ app: AudioApp) async {
         guard state == .idle else { return }
         let defaults = UserDefaults.standard
         guard let model = WhisperModel.preferred(defaults.string(forKey: Pref.model) ?? "") else {
-            error = "No Whisper model found. Put a ggml model in ~/Library/Application Support/Earshot/Models."
+            error = String(localized: "No Whisper model found. Put a ggml model in ~/Library/Application Support/Earshot/Models.")
             return
         }
         error = nil
@@ -74,6 +78,20 @@ final class Recorder {
         transcriber.onError = { [weak self] message in Task { @MainActor in self?.error = message } }
         self.transcriber = transcriber
 
+        var mix: MicMix?
+        if defaults.bool(forKey: Pref.includeMic) {
+            if await Microphone.requestAccess() {
+                mix = MicMix()
+                let micTranscriber = StreamingTranscriber(model: model.url, language: language)
+                micTranscriber.onCommit = { [weak self] segs in
+                    Task { @MainActor in self?.commit(segs.map { s in var s = s; s.speaker = Microphone.speakerName; s.mic = true; return s }) }
+                }
+                self.micTranscriber = micTranscriber
+            } else {
+                error = Microphone.Failure.denied.localizedDescription
+            }
+        }
+
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             audioFile = try AVAudioFile(forWriting: folder.appending(path: "Audio.m4a"), settings: [
@@ -82,10 +100,14 @@ final class Recorder {
             let file = audioFile
             tap = try AudioTap(processes: app.processes) { samples in
                 transcriber.append(samples)
-                guard let file, let buffer = AVAudioPCMBuffer(pcmFormat: AudioTap.outputFormat, frameCapacity: AVAudioFrameCount(samples.count)) else { return }
+                let samples = mix?.mixApp(samples) ?? samples
+                guard let file, let buffer = AVAudioPCMBuffer(pcmFormat: Resampler.format, frameCapacity: AVAudioFrameCount(samples.count)) else { return }
                 buffer.frameLength = buffer.frameCapacity
                 samples.withUnsafeBufferPointer { buffer.floatChannelData![0].update(from: $0.baseAddress!, count: samples.count) }
                 try? file.write(from: buffer)
+            }
+            if let mix, let micTranscriber {
+                microphone = try Microphone { samples in micTranscriber.append(mix.gateMic(samples)) }
             }
         } catch {
             self.error = error.localizedDescription
@@ -104,17 +126,23 @@ final class Recorder {
         state = .finishing
         tap?.stop()
         tap = nil
+        microphone?.stop()
+        microphone = nil
         watchdog?.invalidate()
         guard let transcriber else { cleanUp(); return }
-        transcriber.finish { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                self.captions?.stop()
-                self.attributeSpeakers(since: 0)
-                self.audioFile = nil  // closes the m4a
-                self.save()
-                if let record = self.record { self.onFinished(record) }
-                self.cleanUp()
+        let micTranscriber = micTranscriber
+        let finishMic: (@escaping () -> Void) -> Void = { done in if let micTranscriber { micTranscriber.finish(done) } else { done() } }
+        transcriber.finish {
+            finishMic { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.captions?.stop()
+                    self.attributeSpeakers(since: 0)
+                    self.audioFile = nil  // closes the m4a
+                    self.save()
+                    if let record = self.record { self.onFinished(record) }
+                    self.cleanUp()
+                }
             }
         }
     }
@@ -143,13 +171,14 @@ final class Recorder {
 
     private func commit(_ new: [Segment]) {
         segments += new
+        if new.contains(where: { $0.mic == true }) { segments.sort { $0.start < $1.start } }
         // Captions trail the audio, so the last few lines get a second look once more captions are in.
         attributeSpeakers(since: (new.first?.start ?? 0) - 30)
         save()
     }
 
     private func attributeSpeakers(since time: TimeInterval) {
-        for i in segments.indices.reversed() {
+        for i in segments.indices.reversed() where segments[i].mic != true {
             guard segments[i].end >= time else { break }
             segments[i].speaker = timeline.speaker(from: segments[i].start, to: segments[i].end) ?? segments[i].speaker
         }
@@ -178,8 +207,10 @@ final class Recorder {
 
     private func cleanUp() {
         tap?.stop(); tap = nil
+        microphone?.stop(); microphone = nil
         captions?.stop(); captions = nil
         transcriber = nil
+        micTranscriber = nil
         audioFile = nil
         watchdog?.invalidate(); watchdog = nil
         state = .idle

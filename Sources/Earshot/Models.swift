@@ -8,6 +8,8 @@ struct Segment: Codable, Hashable, Identifiable {
     var end: TimeInterval
     var speaker: String?
     var text: String
+    /// Said into the user's microphone (the speaker is then always the user).
+    var mic: Bool? = nil
 }
 
 /// Consecutive segments from the same speaker, as shown on screen.
