@@ -11,7 +11,7 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 ## Features
 
 - **One click.** The menu bar lists the apps playing sound right now. Click one to start.
-- **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript. It works with the Mac muted.
+- **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript unless you ask. It works with the Mac muted.
 - **Live text.** Lines appear a moment after they are spoken, and the sentence in progress writes itself out. Scroll up and the view stays put until you jump back to live.
 - **Your voice too, if you want.** Tick "Include my microphone" and what you say is transcribed under your name. The mic is muted while the app is talking, so speaker echo is not transcribed twice.
 - **Live subtitles, if you want.** Turn them on in Settings and a small translucent window shows the last two lines said, with the speaker's name when Earshot knows it. Drag it anywhere, change the text size from the window itself. Two engines: **Fast**, Apple's on-device recognition (nothing to download, one language at a time), or **High**, Kyutai STT 1B on MLX (French and English mixed, about half a second behind, 2.4 GB downloaded only when you click Install).
