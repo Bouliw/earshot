@@ -128,9 +128,10 @@ struct TranscriptList: View {
             atBottom = bottom
             if bottom { following = true }
         }
-        .onScrollPhaseChange { _, phase in
+        .onScrollPhaseChange { old, phase in
             if phase == .interacting { following = false }
-            if phase == .idle { following = atBottom }
+            // After the user's own scrolling only: our animated scroll can end short of new text coming in.
+            if phase == .idle, old != .animating { following = atBottom }
         }
         .onChange(of: segments.count) { follow() }
         .onChange(of: live?.1) { follow() }
