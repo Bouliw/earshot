@@ -1,6 +1,10 @@
 # Earshot
 
+**[Download Earshot for Mac](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg)** · macOS 26 or later, Apple silicon
+
 Live, on-device transcription of any app on your Mac, with speaker names.
+
+![Earshot transcribing a class in Microsoft Teams, with demo data](docs/demo.gif)
 
 Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything it plays is transcribed as it is said. No cloud, no bot joining the call: audio never leaves the Mac.
 
@@ -24,15 +28,35 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 | Speaker names | Teams' "Live Captions" panel, read through `AXUIElement`; each line takes the name most heard over its time span |
 | Calendar | EventKit |
 
-## Requirements
+## Install
 
-- macOS 26 or later, Apple silicon
-- A Whisper model in ggml format. Earshot looks in `~/Library/Application Support/Earshot/Models` and `~/.cache/whisper-cpp`. `ggml-large-v3-turbo.bin` is a good default:
+1. [Download `Earshot.dmg`](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg), open it and drag Earshot onto the Applications folder.
+2. Get a Whisper model in ggml format (once). Earshot looks in `~/Library/Application Support/Earshot/Models` and `~/.cache/whisper-cpp`. `ggml-large-v3-turbo.bin` (1.6 GB) is a good default:
 
-```bash
-mkdir -p ~/Library/Application\ Support/Earshot/Models
-curl -L -o ~/Library/Application\ Support/Earshot/Models/ggml-large-v3-turbo.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
-```
+   ```bash
+   mkdir -p ~/Library/Application\ Support/Earshot/Models
+   curl -L -o ~/Library/Application\ Support/Earshot/Models/ggml-large-v3-turbo.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
+   ```
+
+3. Open Earshot from Applications. It is not notarized by Apple, so the first time macOS refuses to open it:
+   - In the "Earshot.app" Not Opened message, click **Done**.
+   - Open **System Settings › Privacy & Security**, scroll down to **Security** and click **Open Anyway** next to "Earshot.app" was blocked to protect your Mac.
+   - Click **Open Anyway** again and confirm with your password or Touch ID.
+
+   From then on it opens normally. Earshot lives in the menu bar (an ear icon), not in the Dock.
+
+### Permissions
+
+macOS asks for each permission the first time Earshot needs it:
+
+| Permission | When | What for |
+| --- | --- | --- |
+| System Audio Recording | First transcription | Hearing the app you pick. Required |
+| Calendars | First time you open the menu | Naming and filing sessions after the calendar event |
+| Accessibility | First Teams call | Reading Teams live captions for speaker names. Turn Earshot on in System Settings › Privacy & Security › Accessibility |
+| Microphone | Only if you tick "Include my microphone" | Transcribing your own voice |
+
+Earshot works without the optional ones: sessions are then named after the app, and lines have no speaker names.
 
 ## Build
 
@@ -42,9 +66,7 @@ Only the Command Line Tools are needed (no Xcode project):
 scripts/build.sh --install
 ```
 
-This builds `build/Earshot.app` and copies it to `/Applications`.
-
-On first use macOS asks for permissions: **System Audio Recording** (to hear the app), **Calendars** (to name sessions), **Accessibility** (for Teams speaker names) and, only if you include it, **Microphone**.
+This builds `build/Earshot.app` and copies it to `/Applications`. `scripts/build.sh --dmg` makes `build/Earshot.dmg` instead.
 
 To check the transcription pipeline on an audio file without a call:
 
