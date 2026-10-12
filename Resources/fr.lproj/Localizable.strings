@@ -15,6 +15,7 @@
 "Library" = "Bibliothèque";
 "Transcript" = "Transcription";
 "Quit" = "Quitter";
+"Quit Earshot (⌘Q)" = "Quitter Earshot (⌘Q)";
 "Finishing…" = "Finalisation…";
 "Recording · %@" = "Enregistrement · %@";
 "Show transcript" = "Voir la transcription";

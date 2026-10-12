@@ -87,15 +87,15 @@ struct MenuView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button { show("library") } label: { Label("Library", systemImage: "books.vertical") }
+        HStack(spacing: 8) {
+            PillButton("Library", icon: "books.vertical") { show("library") }
             if state.recorder.isActive || !state.recorder.segments.isEmpty {
-                Button { show("transcript") } label: { Label("Transcript", systemImage: "text.bubble") }
+                PillButton("Transcript", icon: "text.bubble") { show("transcript") }
             }
             Spacer()
-            Button("Quit") { state.recorder.stop(); NSApp.terminate(nil) }
+            PillButton("Quit", icon: "power", shortcut: "q") { state.recorder.stop(); NSApp.terminate(nil) }
+                .help("Quit Earshot (⌘Q)")
         }
-        .buttonStyle(.borderless).font(.callout).foregroundStyle(.secondary)
     }
 
     private func start(_ app: AudioApp) {
@@ -116,6 +116,36 @@ private struct SectionTitle: View {
     init(_ text: LocalizedStringKey) { self.text = text }
     var body: some View {
         Text(text).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.bottom, 2)
+    }
+}
+
+/// A pill that reads as a button even though the popover never becomes the active window.
+private struct PillButton: View {
+    let title: LocalizedStringKey
+    let icon: String
+    var shortcut: KeyEquivalent?
+    let action: () -> Void
+    @ViewState private var hover = false
+
+    init(_ title: LocalizedStringKey, icon: String, shortcut: KeyEquivalent? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.shortcut = shortcut
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 12).padding(.vertical, 5)
+                .background(hover ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.quaternary), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(shortcut.map { KeyboardShortcut($0) })
+        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hover = h } }
     }
 }
 
