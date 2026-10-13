@@ -237,7 +237,21 @@ final class TranscriptTextView: NSTextView {
     var avatars: [Avatar] = []
 
     /// Plain text only: rich text would carry this window's colors (white text in dark mode) into other apps.
-    override var writablePasteboardTypes: [NSPasteboard.PasteboardType] { [.string] }
+    /// Filtered from AppKit's own list: a hand-written `[.string]` declares the type but writes nothing.
+    override var writablePasteboardTypes: [NSPasteboard.PasteboardType] {
+        super.writablePasteboardTypes.filter { $0 == .string || $0.rawValue == "NSStringPboardType" }
+    }
+
+    /// ⌘C writes the selected text as plain text, without the blinking block of the live line.
+    override func copy(_ sender: Any?) {
+        let text = string as NSString
+        let selected = selectedRanges.map(\.rangeValue).filter { $0.length > 0 && NSMaxRange($0) <= text.length }
+            .map { text.substring(with: $0) }.joined(separator: "\n")
+            .replacingOccurrences(of: "\u{258D}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selected.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(selected, forType: .string)
+    }
 
     /// ⌘A selects the whole transcript, even before the text was clicked.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
