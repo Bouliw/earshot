@@ -2,44 +2,44 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleName</key>
-	<string>Earshot</string>
-	<key>CFBundleDisplayName</key>
-	<string>Earshot</string>
-	<key>CFBundleIdentifier</key>
-	<string>io.github.bouliw.Earshot</string>
-	<key>CFBundleExecutable</key>
-	<string>Earshot</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.2.1</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Earshot</string>
+	<key>CFBundleExecutable</key>
+	<string>Earshot</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.bouliw.Earshot</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>en</string>
 		<string>fr</string>
 	</array>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<key>CFBundleName</key>
+	<string>Earshot</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.2.2</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.productivity</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Earshot listens to the app you pick so it can transcribe it on this Mac.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>When you choose "Include my microphone", Earshot transcribes what you say too.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Live subtitles use Apple's on-device speech recognition. Nothing leaves this Mac.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Earshot names and files each session after the calendar event it belongs to, and stops when the event is over.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Bouliw. MIT License.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>When you choose "Include my microphone", Earshot transcribes what you say too.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Live subtitles use Apple's on-device speech recognition. Nothing leaves this Mac.</string>
 </dict>
 </plist>
