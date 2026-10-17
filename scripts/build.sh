@@ -16,6 +16,7 @@ APP=build/Earshot.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN/Earshot" "$APP/Contents/MacOS/"
+strip -S -x "$APP/Contents/MacOS/Earshot"  # no debug map: it names the folders the app was built in
 cp Resources/Info.plist "$APP/Contents/"
 cp Resources/AppIcon.icns Resources/kyutai-stt.py Resources/install-kyutai.sh "$APP/Contents/Resources/"
 cp -R Resources/*.lproj "$APP/Contents/Resources/"
