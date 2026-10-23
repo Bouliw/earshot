@@ -107,8 +107,6 @@ final class AudioTap {
         guard status == noErr else { throw Failure.coreAudio("tap", status) }
 
         var asbd: AudioStreamBasicDescription = scalarProperty(tapID, kAudioTapPropertyFormat, AudioStreamBasicDescription())
-        let format = AVAudioFormat(streamDescription: &asbd) ?? AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
-        let resample = Resampler(from: format)
 
         let outputDevice: AudioObjectID = scalarProperty(systemObject, kAudioHardwarePropertyDefaultSystemOutputDevice, AudioObjectID(0))
         let outputUID = stringProperty(outputDevice, kAudioDevicePropertyDeviceUID)
@@ -124,6 +122,14 @@ final class AudioTap {
         ]
         status = AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID)
         guard status == noErr else { AudioHardwareDestroyProcessTap(tapID); throw Failure.coreAudio("aggregate device", status) }
+
+        // The aggregate device runs at its main sub-device's rate, which can differ from the rate the tap
+        // reports (a Bluetooth headset in call mode next to 48 kHz speakers, for instance). Reading the
+        // samples at the tap's rate then stretches the audio and garbles the transcript, so use the device's.
+        let deviceRate: Float64 = scalarProperty(aggregateID, kAudioDevicePropertyNominalSampleRate, Float64(0))
+        if deviceRate > 0 { asbd.mSampleRate = deviceRate }
+        let format = AVAudioFormat(streamDescription: &asbd) ?? AVAudioFormat(standardFormatWithSampleRate: deviceRate > 0 ? deviceRate : 48_000, channels: 1)!
+        let resample = Resampler(from: format)
 
         status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, queue) { _, input, _, _, _ in
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, bufferListNoCopy: input, deallocator: nil) else { return }
