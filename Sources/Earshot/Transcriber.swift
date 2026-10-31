@@ -19,9 +19,9 @@ struct WhisperModel: Hashable, Identifiable {
         ]
     }()
 
-    static func installed() -> [WhisperModel] {
+    static func installed(in folders: [URL] = searchFolders) -> [WhisperModel] {
         var seen = Set<String>()
-        return searchFolders.flatMap { folder in
+        return folders.flatMap { folder in
             ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
                 .filter { $0.lastPathComponent.hasPrefix("ggml-") && $0.pathExtension == "bin" }
                 .sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -31,9 +31,8 @@ struct WhisperModel: Hashable, Identifiable {
     }
 
     /// large-v3-turbo first: near large-v3 quality at a fraction of the cost, which keeps the live text snappy.
-    static func preferred(_ path: String) -> WhisperModel? {
-        let all = installed()
-        return all.first { $0.url.path == path }
+    static func preferred(_ path: String, from all: [WhisperModel] = installed()) -> WhisperModel? {
+        all.first { $0.url.path == path }
             ?? all.first { $0.name == "large-v3-turbo" }
             ?? all.first { $0.name.hasPrefix("large-v3") }
             ?? all.first

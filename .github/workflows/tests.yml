@@ -1,0 +1,31 @@
+# Runs the tests on every push and pull request, on a Mac: exports, session files, model lookup, subtitles, audio
+# conversion; then builds the app (ad hoc signature) and runs its built-in check, which also covers the French strings.
+# No microphone, calendar, Whisper model or Apple Developer certificate needed.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: swift test
+      - name: Build the app
+        run: scripts/build.sh
+      - name: Built-in check
+        run: build/Earshot.app/Contents/MacOS/Earshot --check
+      - name: Scripts parse
+        run: |
+          zsh -n scripts/build.sh
+          zsh -n Resources/install-kyutai.sh
+          python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" Resources/kyutai-stt.py
