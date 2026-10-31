@@ -1,5 +1,7 @@
 # Earshot
 
+[![Tests](https://github.com/Bouliw/earshot/actions/workflows/tests.yml/badge.svg)](https://github.com/Bouliw/earshot/actions/workflows/tests.yml)
+
 **[Download Earshot for Mac](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg)** · macOS 26 or later, Apple silicon
 
 Live, on-device transcription of any app on your Mac, with speaker names.
@@ -85,6 +87,8 @@ scripts/build.sh --install
 This builds `build/Earshot.app` and copies it to `/Applications`. `scripts/build.sh --dmg` makes `build/Earshot.dmg` instead.
 
 If an Apple Development certificate is in your keychain (a free Apple Account added in Xcode › Settings › Apple Accounts is enough), local builds are signed with it, so macOS keeps Earshot's permissions across rebuilds. Without one, builds are signed ad hoc and macOS treats every rebuild as a new app: remove Earshot from Device Control and Data Access and add it again. Set `EARSHOT_SIGN_IDENTITY` to choose a specific identity. DMGs are always signed ad hoc.
+
+Tests: `swift test`, then `build/Earshot.app/Contents/MacOS/Earshot --check` on the built app (it also checks the French strings).
 
 To check the pipeline on an audio file without a call (the transcript, then the live subtitles):
 
