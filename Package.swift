@@ -15,6 +15,7 @@ let package = Package(
             dependencies: ["whisper"],
             linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
+        .testTarget(name: "EarshotTests", dependencies: ["Earshot"]),
     ],
     swiftLanguageModes: [.v5]
 )
