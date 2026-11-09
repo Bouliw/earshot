@@ -12,13 +12,29 @@ enum Pref {
     static let subtitles = "subtitles"
     static let subtitleEngine = "subtitleEngine"  // SubtitleEngineKind
     static let subtitleSize = "subtitleSize"
+    static let mode = "transcriptionMode"   // TranscriptionMode
+    static let separateVoices = "separateVoices"
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
 }
 
-/// One recording: capture, live transcription, speaker names, auto-stop and saving.
+/// When the words are written: once the call is over (only the sound is saved meanwhile, no model runs),
+/// or live, as they are said.
+enum TranscriptionMode: String, CaseIterable {
+    case afterCall = "after"
+    case live
+
+    static var current: TranscriptionMode { TranscriptionMode(rawValue: UserDefaults.standard.string(forKey: Pref.mode) ?? "") ?? .afterCall }
+}
+
+/// One recording: capture, live transcription or saved sound, speaker names, auto-stop and saving.
 @Observable @MainActor
 final class Recorder {
     enum State { case idle, recording, finishing }
+
+    /// 16 kHz mono AAC: what every session keeps as Audio.m4a.
+    nonisolated(unsafe) static let audioSettings: [String: Any] = [
+        AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 48_000,
+    ]
 
     var state = State.idle
     var app: AudioApp?
@@ -32,7 +48,13 @@ final class Recorder {
     var folder: URL?
     var error: String?
     var needsAccessibility = false
+    /// Why the last session could not be transcribed.
+    var failure: String? { state == .idle ? record?.failure : nil }
+    /// How the current (or last) session is transcribed.
+    var mode = TranscriptionMode.afterCall
     var onFinished: (SessionRecord) -> Void = { _ in }
+    /// Work for after the call: the transcript itself, or telling the voices apart.
+    var onQueued: (URL, TranscriptionQueue.Kind, String) -> Void = { _, _, _ in }
     /// Live subtitles, shown in their own window while `subtitlesOn`.
     let subtitles = SubtitleFeed()
     var subtitlesOn = false
@@ -43,7 +65,9 @@ final class Recorder {
     private var microphone: Microphone?
     private var micTranscriber: StreamingTranscriber?
     private var timeline = SpeakerTimeline()
-    private var audioFile: AVAudioFile?
+    private var audioTrack: RawTrack?
+    private var appTrack: RawTrack?
+    private var micTrack: RawTrack?
     private var watchdog: Timer?
     private var lastSound = Date()
     private var record: SessionRecord?
@@ -76,6 +100,8 @@ final class Recorder {
         let group = event.map { CalendarLookup.courseName($0.title) } ?? app.name
         let folder = SessionStore.newFolder(base: base, group: group)
 
+        let mode = TranscriptionMode.current
+        self.mode = mode
         self.app = app
         title = event?.title ?? String(localized: "\(app.name) call")
         eventEnd = event?.end
@@ -88,42 +114,65 @@ final class Recorder {
         record = SessionRecord(title: title, appName: app.name, bundleID: app.bundleID, startedAt: startedAt, duration: 0, segments: [])
 
         let language = defaults.string(forKey: Pref.language) ?? "auto"
-        let transcriber = StreamingTranscriber(model: model.url, language: language)
-        transcriber.onCommit = { [weak self] segs in Task { @MainActor in self?.commit(segs) } }
-        transcriber.onPreview = { [weak self] text in Task { @MainActor in self?.preview = text; self?.previewSpeaker = self?.timeline.latest } }
-        transcriber.onLevel = { [weak self] rms in Task { @MainActor in self?.level = rms } }
-        transcriber.onError = { [weak self] message in Task { @MainActor in self?.error = message } }
+        // After the call: no model while recording, only the sound is saved (and a level for the meter).
+        var transcriber: StreamingTranscriber?
+        var meter: LevelFeed?
+        if mode == .live {
+            let live = StreamingTranscriber(model: model.url, language: language)
+            live.onCommit = { [weak self] segs in Task { @MainActor in self?.commit(segs) } }
+            live.onPreview = { [weak self] text in Task { @MainActor in self?.preview = text; self?.previewSpeaker = self?.timeline.latest } }
+            live.onLevel = { [weak self] rms in Task { @MainActor in self?.level = rms } }
+            live.onError = { [weak self] message in Task { @MainActor in self?.error = message } }
+            transcriber = live
+        } else {
+            meter = LevelFeed { [weak self] rms in Task { @MainActor in self?.level = rms } }
+        }
         self.transcriber = transcriber
 
         var mix: MicMix?
+        var micTranscriber: StreamingTranscriber?
         if defaults.bool(forKey: Pref.includeMic) {
             if await Microphone.requestAccess() {
                 mix = MicMix()
-                let micTranscriber = StreamingTranscriber(model: model.url, language: language)
-                micTranscriber.onCommit = { [weak self] segs in
-                    Task { @MainActor in self?.commit(segs.map { s in var s = s; s.speaker = Microphone.speakerName; s.mic = true; return s }) }
+                if mode == .live {
+                    let live = StreamingTranscriber(model: model.url, language: language)
+                    live.onCommit = { [weak self] segs in
+                        Task { @MainActor in self?.commit(segs.map { s in var s = s; s.speaker = Microphone.speakerName; s.mic = true; return s }) }
+                    }
+                    micTranscriber = live
                 }
-                self.micTranscriber = micTranscriber
             } else {
                 error = Microphone.Failure.denied.localizedDescription
             }
         }
+        self.micTranscriber = micTranscriber
 
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            audioFile = try AVAudioFile(forWriting: folder.appending(path: "Audio.m4a"), settings: [
-                AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 48_000,
-            ], commonFormat: .pcmFormatFloat32, interleaved: false)
-            let file = audioFile, sink = subtitleSink
-            tap = try AudioTap(processes: app.processes) { samples in
-                transcriber.append(samples)
-                sink.append(samples)
-                let samples = mix?.mixApp(samples) ?? samples
-                guard let file, let buffer = Resampler.buffer(samples) else { return }
-                try? file.write(from: buffer)
+            audioTrack = try RawTrack(folder.appending(path: SessionStore.rawAudioName))
+            if mix != nil {
+                appTrack = try RawTrack(folder.appending(path: SessionStore.appTrackName))
+                micTrack = try RawTrack(folder.appending(path: SessionStore.micTrackName))
             }
-            if let mix, let micTranscriber {
-                microphone = try Microphone { samples in micTranscriber.append(mix.gateMic(samples)) }
+            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = transcriber, liveMic = micTranscriber, levels = meter, mixer = mix
+            tap = try AudioTap(processes: app.processes) { samples in
+                live?.append(samples)
+                levels?.append(samples)
+                sink.append(samples)
+                appOnly?.append(samples)
+                if let mixer {
+                    let (mixed, mic) = mixer.split(samples)
+                    audio?.append(mixed)
+                    micOnly?.append(mic)
+                } else {
+                    audio?.append(samples)
+                }
+            }
+            if let mixer {
+                microphone = try Microphone { samples in
+                    let heard = mixer.gateMic(samples)
+                    liveMic?.append(heard)
+                }
             }
         } catch {
             self.error = error.localizedDescription
@@ -147,23 +196,62 @@ final class Recorder {
         microphone?.stop()
         microphone = nil
         watchdog?.invalidate()
-        guard let transcriber else { cleanUp(); return }
+        // After the call there is nothing to flush: the sound is all saved.
+        guard let transcriber else { finish(); return }
         let micTranscriber = micTranscriber
         let finishMic: (@escaping () -> Void) -> Void = { done in if let micTranscriber { micTranscriber.finish(done) } else { done() } }
-        transcriber.finish {
-            finishMic { [weak self] in
-                Task { @MainActor in
-                    guard let self else { return }
-                    self.captions?.stop()
-                    self.attributeSpeakers(since: 0)
-                    self.audioFile = nil  // closes the m4a
-                    self.save()
-                    if let record = self.record { self.onFinished(record) }
-                    self.cleanUp()
-                }
-            }
+        transcriber.finish { [weak self] in
+            finishMic { Task { @MainActor in self?.finish() } }
         }
     }
+
+    private func finish() {
+        captions?.stop()
+        if mode == .live { attributeSpeakers(since: 0) }
+        for track in [audioTrack, appTrack, micTrack] { track?.close() }
+        audioTrack = nil
+        appTrack = nil
+        micTrack = nil
+        if mode == .afterCall { record?.status = .pending }
+        save()
+        guard let folder else { cleanUp(); return }
+        // Encoding an hour of sound takes a few seconds: off the main thread, the window stays responsive.
+        Task.detached {
+            try? SessionStore.finalizeAudio(in: folder)
+            await MainActor.run { self.queueAfterRecording() }
+        }
+    }
+
+    private func queueAfterRecording() {
+        if let record, let folder {
+            let voices = UserDefaults.standard.object(forKey: Pref.separateVoices) as? Bool ?? true
+            if mode == .afterCall {
+                onQueued(folder, .transcribe, record.title)
+            } else if voices, segments.contains(where: { $0.mic != true }) {
+                onQueued(folder, .voices, record.title)
+            }
+            onFinished(record)
+        }
+        cleanUp()
+    }
+
+    /// Shows a session again once its transcript or its voices are done (the transcript window keeps the last one).
+    func refresh(_ updated: SessionRecord) {
+        guard state == .idle, let folder, TranscriptionQueue.same(folder, updated.folder ?? folder) else { return }
+        record = updated
+        segments = updated.segments
+    }
+
+    /// Renames a speaker in the last session, once it is over.
+    func rename(_ old: String?, to new: String) {
+        guard state == .idle, var record, let folder else { return }
+        record.segments = segments
+        record.rename(old, to: new)
+        segments = record.segments
+        self.record = record
+        SessionStore.write(record, to: folder)
+    }
+
 
     func retryAccessibility() {
         TeamsCaptions.requestTrust()
@@ -237,6 +325,8 @@ final class Recorder {
         let quiet = Date().timeIntervalSince(lastSound)
         if let end = eventEnd { if Date() > end && quiet > 120 { stop() } } else if quiet > 180 { stop() }
         if captions == nil, needsAccessibility, TeamsCaptions.isTrusted { startCaptions(pid: app.pid) }
+        // No new lines come in after the call: keep the duration and the names on disk anyway.
+        if state == .recording, mode == .afterCall { save() }
     }
 
     /// Written after every new line, so a crash loses at most a few seconds of text.
@@ -244,6 +334,7 @@ final class Recorder {
         guard var record, let folder else { return }
         record.segments = segments
         record.duration = elapsed
+        if !timeline.marks.isEmpty { record.names = timeline.marks }
         self.record = record
         SessionStore.write(record, to: folder)
     }
@@ -254,7 +345,10 @@ final class Recorder {
         captions?.stop(); captions = nil
         transcriber = nil
         micTranscriber = nil
-        audioFile = nil
+        for track in [audioTrack, appTrack, micTrack] { track?.close() }
+        audioTrack = nil
+        appTrack = nil
+        micTrack = nil
         watchdog?.invalidate(); watchdog = nil
         state = .idle
         preview = ""
@@ -294,6 +388,32 @@ enum CalendarLookup {
 
 enum SessionStore {
     static let recordName = ".earshot.json"
+    static let audioName = "Audio.m4a"
+    /// The sound while recording, raw so that nothing is lost if Earshot stops abruptly (see `RawTrack`).
+    static let rawAudioName = ".audio.pcm"
+    /// With the microphone included, the app and the microphone are also saved apart until the
+    /// transcript is done, so the user's voice is never taken for someone else in the call.
+    static let appTrackName = ".app.pcm"
+    static let micTrackName = ".mic.pcm"
+
+    /// Turns the raw sound of a finished (or interrupted) recording into Audio.m4a.
+    nonisolated static func finalizeAudio(in folder: URL) throws {
+        let raw = folder.appending(path: rawAudioName)
+        guard FileManager.default.fileExists(atPath: raw.path) else { return }
+        let samples = try RawTrack.read(raw)
+        let audio = folder.appending(path: audioName)
+        try? FileManager.default.removeItem(at: audio)
+        try AudioFile.write(samples, to: audio)
+        try FileManager.default.removeItem(at: raw)
+    }
+
+    static func load(_ folder: URL) -> SessionRecord? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let data = try? Data(contentsOf: folder.appending(path: recordName)), var r = try? decoder.decode(SessionRecord.self, from: data) else { return nil }
+        r.folder = folder
+        return r
+    }
 
     /// <base>/<group>/<yyyy-MM-dd>, with " 2", " 3"... for further sessions the same day.
     static func newFolder(base: URL, group: String) -> URL {

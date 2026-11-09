@@ -41,13 +41,40 @@ struct SessionRecord: Codable, Hashable, Identifiable {
     var startedAt: Date
     var duration: TimeInterval
     var segments: [Segment]
+    /// Set while the audio waits to be transcribed (recorded with "After the call", or an imported file).
+    var status: Status? = nil
+    /// Who Teams captions said was speaking, and when: names the speakers once the voices are told apart.
+    var names: [NameMark]? = nil
+    /// The audio or video file an imported session comes from.
+    var source: String? = nil
+    /// Why the transcription failed, when `status` is `.failed`.
+    var failure: String? = nil
     /// Not stored: where the record was loaded from.
     var folder: URL? = nil
 
-    enum CodingKeys: String, CodingKey { case id, title, appName, bundleID, startedAt, duration, segments }
+    enum Status: String, Codable { case pending, failed }
+
+    enum CodingKeys: String, CodingKey { case id, title, appName, bundleID, startedAt, duration, segments, status, names, source, failure }
 
     /// Name of the library group (the calendar event the session was filed under).
     var group: String { folder?.deletingLastPathComponent().lastPathComponent ?? title }
+
+    /// Distinct speaker names, in the order they first speak.
+    var speakers: [String] {
+        var seen = Set<String>()
+        return segments.compactMap(\.speaker).filter { seen.insert($0).inserted }
+    }
+
+    /// Every line from `old` (nil: the lines without a name) now says `new`. Giving two speakers the same name merges them.
+    mutating func rename(_ old: String?, to new: String) {
+        for i in segments.indices where segments[i].speaker == old { segments[i].speaker = new }
+    }
+}
+
+/// A speaker name seen at a moment of the session (seconds from its start).
+struct NameMark: Codable, Hashable {
+    var time: Double
+    var name: String
 }
 
 extension TimeInterval {

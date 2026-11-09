@@ -9,6 +9,8 @@ struct SettingsView: View {
     @AppStorage(Pref.autoCaptions) private var autoCaptions = true
     @AppStorage(Pref.subtitles) private var subtitles = false
     @AppStorage(Pref.subtitleSize) private var subtitleSize = 24.0
+    @AppStorage(Pref.mode) private var mode = TranscriptionMode.afterCall.rawValue
+    @AppStorage(Pref.separateVoices) private var separateVoices = true
     @ViewState private var trusted = TeamsCaptions.isTrusted
     @ViewState private var openAtLogin = SMAppService.mainApp.status == .enabled
     private let models = WhisperModel.installed()
@@ -37,7 +39,12 @@ struct SettingsView: View {
             } footer: {
                 Text("Takes effect the next time Earshot opens.").foregroundStyle(.secondary)
             }
-            Section("Transcription") {
+            Section {
+                Picker("Transcribe", selection: $mode) {
+                    Text("After the call").tag(TranscriptionMode.afterCall.rawValue)
+                    Text("Live").tag(TranscriptionMode.live.rawValue)
+                }
+                Toggle("Tell voices apart", isOn: $separateVoices)
                 Picker("Spoken language", selection: $language) {
                     Text("Automatic").tag("auto")
                     Text("English").tag("en")
@@ -47,6 +54,10 @@ struct SettingsView: View {
                     ForEach(models) { m in Text(m.name).tag(m.id) }
                 }
                 .disabled(models.isEmpty)
+            } header: {
+                Text("Transcription")
+            } footer: {
+                Text("After the call, only the sound is saved while you talk: the Mac stays cool, and the transcript that follows gives each sentence its own language. Voices are told apart on this Mac once the call ends (about 40 MB downloaded the first time); Teams names are used when Earshot can see them, “Speaker 1”, “Speaker 2”… otherwise. Click a name in a transcript to rename it.").foregroundStyle(.secondary)
             }
             Section {
                 Toggle("Show live subtitles", isOn: $subtitles)

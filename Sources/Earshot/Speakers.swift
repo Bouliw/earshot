@@ -116,9 +116,11 @@ final class TeamsCaptions {
 
 /// Who spoke when, from the captions, in session time.
 struct SpeakerTimeline {
-    private(set) var marks: [(time: Double, name: String)] = []
+    private(set) var marks: [NameMark] = []
 
-    mutating func add(_ time: Double, _ name: String) { marks.append((time - TeamsCaptions.lag, name)) }
+    init(_ marks: [NameMark] = []) { self.marks = marks }
+
+    mutating func add(_ time: Double, _ name: String) { marks.append(NameMark(time: time - TeamsCaptions.lag, name: name)) }
 
     var latest: String? { marks.last?.name }
 

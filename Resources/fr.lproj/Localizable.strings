@@ -103,3 +103,51 @@
 "This language is not installed on this Mac for Fast subtitles. Pick High, or another spoken language." = "Cette langue n'est pas installée sur ce Mac pour les sous-titres Rapide. Choisissez Élevé, ou une autre langue parlée.";
 "High subtitles are not installed. Install them in Settings." = "Les sous-titres Élevé ne sont pas installés. Installez-les dans les Réglages.";
 "High subtitles stopped: %@" = "Les sous-titres Élevé se sont arrêtés : %@";
+
+/* After the call, voices, imported files */
+"Recording on this Mac" = "Enregistrement sur ce Mac";
+"After the call" = "Après l'appel";
+"Live" = "En direct";
+"Words appear as they are said." = "Le texte s'affiche au fil de la parole.";
+"Only the sound is saved during the call. The transcript follows, with each voice." = "Seul le son est enregistré pendant l'appel. La transcription suit, avec chaque voix.";
+"Transcribed when the call ends, with each voice" = "Transcrit à la fin de l'appel, avec chaque voix";
+"Transcribe a file…" = "Transcrire un fichier…";
+"Audio or video, with each voice" = "Audio ou vidéo, avec chaque voix";
+"Choose audio or video files to transcribe." = "Choisissez des fichiers audio ou vidéo à transcrire.";
+"Transcribe audio or video files, with each voice" = "Transcrire des fichiers audio ou vidéo, avec chaque voix";
+"Imported files" = "Fichiers importés";
+"File" = "Fichier";
+"Telling voices apart" = "Séparation des voix";
+"Telling voices apart…" = "Séparation des voix…";
+"Telling voices apart · %lld waiting" = "Séparation des voix · %lld en attente";
+"Telling voices apart · %@" = "Séparation des voix · %@";
+"Transcribing" = "Transcription en cours";
+"Transcribing…" = "Transcription…";
+"Transcribing · %lld waiting" = "Transcription · %lld en attente";
+"Transcribing · %@" = "Transcription · %@";
+"Transcribing again…" = "Nouvelle transcription…";
+"Waiting to be transcribed" = "En attente de transcription";
+"Waiting to be transcribed again" = "En attente d'une nouvelle transcription";
+"Recording" = "Enregistrement";
+"The transcript is written when the call ends, with each voice. No model runs during the call." = "La transcription est faite à la fin de l'appel, avec chaque voix. Aucun modèle ne tourne pendant l'appel.";
+"Each voice is told apart, and each sentence keeps its language. Everything runs on this Mac." = "Chaque voix est séparée et chaque phrase garde sa langue. Tout tourne sur ce Mac.";
+"Transcript ready" = "Transcription prête";
+"Could not be transcribed" = "Transcription impossible";
+"Try again" = "Réessayer";
+"Transcribe again" = "Transcrire à nouveau";
+"Transcribe again from the audio: each voice told apart, each sentence in its own language" = "Transcrire à nouveau depuis le son : chaque voix séparée, chaque phrase dans sa langue";
+"Speaker %lld" = "Intervenant %lld";
+"Rename %@" = "Renommer %@";
+"Rename" = "Renommer";
+"Name" = "Nom";
+"Rename this speaker" = "Renommer cet intervenant";
+"Rename a speaker" = "Renommer un intervenant";
+"Rename a speaker in this session" = "Renommer un intervenant de cette session";
+"Every line from this speaker in this session takes the new name." = "Toutes les lignes de cet intervenant dans cette session prennent le nouveau nom.";
+"Transcription" = "Transcription";
+"Tell voices apart" = "Séparer les voix";
+"After the call, only the sound is saved while you talk: the Mac stays cool, and the transcript that follows gives each sentence its own language. Voices are told apart on this Mac once the call ends (about 40 MB downloaded the first time); Teams names are used when Earshot can see them, “Speaker 1”, “Speaker 2”… otherwise. Click a name in a transcript to rename it." = "Après l'appel, seul le son est enregistré pendant que vous parlez : le Mac reste frais, et la transcription qui suit donne à chaque phrase sa propre langue. Les voix sont séparées sur ce Mac à la fin de l'appel (environ 40 Mo téléchargés la première fois) ; les noms Teams sont repris quand Earshot les voit, sinon « Intervenant 1 », « Intervenant 2 »… Cliquez sur un nom dans une transcription pour le renommer.";
+
+/* Errors: after the call */
+"%@ has no sound Earshot can read." = "%@ n'a pas de son qu'Earshot peut lire.";
+"The audio of this session is missing." = "Le son de cette session est introuvable.";

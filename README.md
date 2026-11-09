@@ -9,23 +9,27 @@
 
 **[Download Earshot for Mac](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg)** · macOS 26 or later, Apple silicon
 
-Live, on-device transcription of any app on your Mac, with speaker names.
+On-device transcription of any app on your Mac, live or once the call is over, with each voice told apart.
 
 ![Earshot transcribing a class in Microsoft Teams, with demo data](docs/demo.gif)
 
-Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything it plays is transcribed as it is said. No cloud, no bot joining the call: audio never leaves the Mac.
+Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything it plays is transcribed, either once the call is over or as it is said. No cloud, no bot joining the call: audio never leaves the Mac.
 
 ## Features
 
 - **One click.** The menu bar lists the apps playing sound right now. Click one to start.
+- **After the call, or live.** By default only the sound is saved during the call: no model runs, so the Mac stays cool, and the transcript is written once the call ends (a minute or two for an hour, on Apple silicon). Switch to **Live** in the menu to watch the text appear as it is said.
+- **Each voice told apart.** Once the call ends, Earshot works out who spoke when, on the Neural Engine. Lines get the Teams names when it can see them, "Speaker 1", "Speaker 2"… otherwise. Click a name to rename that speaker everywhere in the session; give two the same name to merge them.
+- **Files too.** "Transcribe a file…" (or a drop on the Library) takes any audio or video file macOS can open: a voice memo, a meeting recorded elsewhere. Each one is transcribed like a call, voices included.
 - **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript unless you ask. It works with the Mac muted.
 - **Live text.** Lines appear a moment after they are spoken, and the sentence in progress writes itself out. Scroll up and the view stays put until you jump back to live.
 - **Your voice too, if you want.** Tick "Include my microphone" and what you say is transcribed under your name. The mic is muted while the app is talking, so speaker echo is not transcribed twice.
 - **Live subtitles, if you want.** Turn them on in Settings and a small translucent window shows the last two lines said, with the speaker's name when Earshot knows it. Drag it anywhere, change the text size from the window itself. Two engines: **Fast**, Apple's on-device recognition (nothing to download, one language at a time), or **High**, Kyutai STT 1B on MLX (French and English mixed, about half a second behind, 2.4 GB downloaded only when you click Install).
 - **Who said what.** In Microsoft Teams, names come from Teams' own live captions, read through the accessibility API. Earshot can turn the captions on for you.
 - **Filed by calendar event.** Each session is saved under the name of the calendar event it belongs to, then the date. Recording stops when the call ends, but not during a break before the event is over.
-- **English or French.** The interface follows the system language, or pick one in Settings. Transcription works in either language, or detects it. Detection runs once per block of speech (up to 25 s), so when speakers switch languages within a block, the transcript keeps the block's main language and sentences in the other one come out translated rather than word for word. The High live subtitles follow both languages as spoken.
-- **Exports.** Every session folder holds `Transcript.txt` and `Audio.m4a`, kept up to date while recording. Markdown and subtitles (.srt) export from the Library.
+- **English or French.** The interface follows the system language, or pick one in Settings. Transcription works in either language, or detects it. After the call, the language is detected for each piece of speech (one voice, up to 15 s), so a class that goes back and forth between French and English keeps each sentence in the language it was said in. Live, detection runs once per block of speech (up to 25 s): when speakers switch languages within a block, the transcript keeps the block's main language and sentences in the other one come out translated rather than word for word. The High live subtitles follow both languages as spoken.
+- **Nothing lost.** The sound is written as it comes, so a forced quit, a crash or a Mac that shuts down mid-call loses only the last fraction of a second: Earshot picks the session up at its next launch.
+- **Exports.** Every session folder holds `Transcript.txt` and `Audio.m4a`. Markdown and subtitles (.srt) export from the Library, and any session can be transcribed again from its audio.
 - **Searchable with your documents.** One plain text file per session, so a folder indexer such as [doc-indexer-macos](https://github.com/Bouliw/doc-indexer-macos) finds every class once, next to your other files. Neither app needs the other.
 
 ## How it works
@@ -33,8 +37,9 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 | Piece | What it uses |
 | --- | --- |
 | Per-app capture | Core Audio process taps (`CATapDescription`, macOS 14.2+) on all of the app's audio processes, helpers included |
-| Transcription | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with Metal. Audio is cut at pauses, silence is skipped so Whisper does not hallucinate |
-| Speaker names | Teams' "Live Captions" panel, read through `AXUIElement`; each line takes the name most heard over its time span |
+| Transcription | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with Metal. Audio is cut at pauses, silence is skipped so Whisper does not hallucinate. After the call, each piece is one voice and gets its own language |
+| Voices | [FluidAudio](https://github.com/FluidInference/FluidAudio)'s offline speaker diarization (pyannote segmentation and speaker embeddings in Core ML, on the Neural Engine). Each voice takes the Teams name heard most over its turns |
+| Speaker names | Teams' "Live Captions" panel, read through `AXUIElement`, kept with the session so the voices can be named after the call |
 | Calendar | EventKit |
 | Live subtitles | Fast: Apple's `SpeechAnalyzer`. High: [Kyutai STT 1B en_fr](https://huggingface.co/kyutai/stt-1b-en_fr-mlx) with MLX, run by a small Python script in its own environment |
 
@@ -66,7 +71,9 @@ macOS asks for each permission the first time Earshot needs it:
 | Device Control and Data Access (Accessibility before macOS 27) | First Teams call | Reading Teams live captions for speaker names. Turn Earshot on in System Settings › Privacy & Security › Device Control and Data Access |
 | Microphone | Only if you tick "Include my microphone" | Transcribing your own voice |
 
-Earshot works without the optional ones: sessions are then named after the app, and lines have no speaker names.
+Earshot works without the optional ones: sessions are then named after the app, and voices are numbered instead of named.
+
+The first time voices are told apart, Earshot downloads the speaker models (about 40 MB, from Hugging Face) into `~/Library/Application Support/Earshot/Speakers`. Turn "Tell voices apart" off in Settings to skip them. With the microphone included, the app and your voice are also kept as two hidden tracks until the transcript is done, so your voice is never taken for someone else's.
 
 ### High subtitles
 

@@ -39,21 +39,62 @@ struct LibraryView: View {
             }
         }
         .searchable(text: $query, placement: .toolbar, prompt: "Search transcript")
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button { pickFiles() } label: { Label("Transcribe a file…", systemImage: "doc.badge.plus") }
+                    .help("Transcribe audio or video files, with each voice")
+            }
+        }
+        // Audio or video dropped on the window is transcribed like a recording.
+        .dropDestination(for: URL.self) { urls, _ in
+            let files = urls.filter { url in
+                guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
+                return type.conforms(to: .audio) || type.conforms(to: .movie)
+            }
+            guard !files.isEmpty else { return false }
+            state.importFiles(files)
+            group = nil
+            return true
+        }
         .onAppear { state.reloadLibrary() }
         .onChange(of: group) { selection = sessions.first?.id }
         .frame(minWidth: 820, minHeight: 480)
     }
+
+    private func pickFiles() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.audio, .movie]
+        panel.message = String(localized: "Choose audio or video files to transcribe.")
+        panel.prompt = String(localized: "Transcribe")
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        state.importFiles(panel.urls)
+        group = nil
+    }
 }
 
 private struct SessionRow: View {
+    @Environment(AppState.self) private var state
     let record: SessionRecord
     var body: some View {
         HStack(spacing: 10) {
             AppIcon(bundleID: record.bundleID).frame(width: 28, height: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(record.title).font(.body.weight(.medium)).lineLimit(1)
-                Text("\(record.startedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())) · \(record.duration.spoken)")
-                    .font(.caption).foregroundStyle(.secondary)
+                Group {
+                    if let work = state.queue.status(of: record.folder) {
+                        if work.waiting { Text("Waiting to be transcribed") }
+                        else {
+                            let percent = work.progress.formatted(.percent.precision(.fractionLength(0)))
+                            Text(work.kind == .voices ? "Telling voices apart · \(percent)" : "Transcribing · \(percent)")
+                        }
+                    } else if record.status == .failed {
+                        Text("Could not be transcribed").foregroundStyle(.orange)
+                    } else {
+                        Text("\(record.startedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())) · \(record.duration.spoken)")
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 3)
@@ -61,8 +102,11 @@ private struct SessionRow: View {
 }
 
 private struct SessionDetail: View {
+    @Environment(AppState.self) private var state
     let record: SessionRecord
     let query: String
+
+    private var hasAudio: Bool { record.folder.map { FileManager.default.fileExists(atPath: $0.appending(path: SessionStore.audioName).path) } ?? false }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,10 +121,47 @@ private struct SessionDetail: View {
             }
             .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 10)
             Divider()
-            TranscriptList(segments: record.segments, startedAt: record.startedAt, query: query)
+            let work = state.queue.status(of: record.folder)
+            if let work, work.kind == .voices || !record.segments.isEmpty {
+                Banner(icon: "person.2.wave.2", text: Text(work.kind == .voices ? "Telling voices apart…" : (work.waiting ? "Waiting to be transcribed again" : "Transcribing again…"))) {
+                    ProgressView(value: work.progress).frame(width: 80)
+                }
+            }
+            if let work, record.segments.isEmpty {
+                TranscribingView(waiting: work.waiting, progress: work.progress)
+            } else if record.status == .failed && record.segments.isEmpty {
+                ContentUnavailableView {
+                    Label("Could not be transcribed", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(record.failure ?? "")
+                } actions: {
+                    Button("Try again") { state.retranscribe(record) }.buttonStyle(.glassProminent)
+                }
+            } else if record.status == .pending && record.segments.isEmpty {
+                TranscribingView(waiting: true, progress: 0)
+            } else {
+                TranscriptList(segments: record.segments, startedAt: record.startedAt, query: query,
+                               onRename: work == nil ? { old in if let new = AppState.askName(for: old) { state.rename(old, to: new, in: record) } } : nil)
+            }
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                if !record.speakers.isEmpty || !record.segments.isEmpty {
+                    Menu {
+                        ForEach(speakerChoices, id: \.self) { name in
+                            Button(name ?? String(localized: "Speaker")) {
+                                if let new = AppState.askName(for: name) { state.rename(name, to: new, in: record) }
+                            }
+                        }
+                    } label: {
+                        Label("Rename a speaker", systemImage: "person.text.rectangle")
+                    }
+                    .help("Rename a speaker in this session")
+                    .disabled(state.queue.status(of: record.folder) != nil)
+                }
+                Button { state.retranscribe(record) } label: { Label("Transcribe again", systemImage: "arrow.clockwise") }
+                    .help("Transcribe again from the audio: each voice told apart, each sentence in its own language")
+                    .disabled(!hasAudio || state.queue.status(of: record.folder) != nil)
                 Menu {
                     Button("Text (.txt)") { export("txt", .plainText, text: SessionStore.text(record)) }
                     Button("Markdown (.md)") { export("md", UTType(filenameExtension: "md") ?? .plainText, text: SessionStore.markdown(record)) }
@@ -93,6 +174,13 @@ private struct SessionDetail: View {
                 Button { if let f = record.folder { NSWorkspace.shared.open(f) } } label: { Label("Show in Finder", systemImage: "folder") }
             }
         }
+    }
+
+    /// Every speaker, in order of appearance (nil: lines without a name).
+    private var speakerChoices: [String?] {
+        var seen: [String?] = []
+        for s in record.segments where !seen.contains(s.speaker) { seen.append(s.speaker) }
+        return seen
     }
 
     private var speakers: String {

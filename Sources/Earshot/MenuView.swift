@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The popover under the menu bar icon: apps playing sound, one click to start.
 struct MenuView: View {
@@ -7,6 +8,7 @@ struct MenuView: View {
     @Environment(\.openSettings) private var openSettings
     @ViewState private var showQuiet = false
     @AppStorage(Pref.includeMic) private var includeMic = false
+    @AppStorage(Pref.mode) private var mode = TranscriptionMode.afterCall.rawValue
 
     private var playing: [AudioApp] { state.apps.filter(\.isPlaying) }
     private var quiet: [AudioApp] { state.apps.filter { !$0.isPlaying } }
@@ -19,10 +21,12 @@ struct MenuView: View {
             } else {
                 if let event = state.event { EventChip(title: event.title, end: event.end) }
                 appList
+                modePicker
                 Toggle("Include my microphone", isOn: $includeMic)
                     .toggleStyle(.checkbox).font(.callout).padding(.horizontal, 8)
                     .help("Also transcribe what you say, under your name.")
             }
+            if state.queue.current != nil { QueueCard() }
             if let error = state.recorder.error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
@@ -46,7 +50,7 @@ struct MenuView: View {
             AppMark(size: 30)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Earshot").font(.headline)
-                Text(state.recorder.isActive ? "Transcribing on this Mac" : "Pick an app to transcribe")
+                Text(state.recorder.isActive ? (state.recorder.mode == .live ? "Transcribing on this Mac" : "Recording on this Mac") : "Pick an app to transcribe")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -83,7 +87,37 @@ struct MenuView: View {
                 .buttonStyle(.plain).padding(.top, 6)
                 if showQuiet { ForEach(quiet) { app in AppRow(app: app) { start(app) }.opacity(0.8) } }
             }
+            FileRow { pickFiles() }.padding(.top, 2)
         }
+    }
+
+    /// After the call (the default) or live, for the next recording.
+    private var modePicker: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Picker("Transcribe", selection: $mode) {
+                Text("After the call").tag(TranscriptionMode.afterCall.rawValue)
+                Text("Live").tag(TranscriptionMode.live.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Text(mode == TranscriptionMode.live.rawValue ? "Words appear as they are said." : "Only the sound is saved during the call. The transcript follows, with each voice.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    /// Audio or video files to transcribe, like a recording.
+    private func pickFiles() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.audio, .movie]
+        panel.message = String(localized: "Choose audio or video files to transcribe.")
+        panel.prompt = String(localized: "Transcribe")
+        NSApp.activate()
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        state.importFiles(panel.urls)
+        show("library")
     }
 
     private var footer: some View {
@@ -249,6 +283,65 @@ struct LevelMeter: View {
     }
 }
 
+/// The last row of the app list: a file instead of an app.
+private struct FileRow: View {
+    let action: () -> Void
+    @ViewState private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.badge.plus")
+                    .font(.system(size: 15, weight: .medium)).foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Transcribe a file…").font(.body.weight(.medium))
+                    Text("Audio or video, with each voice").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .background(hover ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear), in: RoundedRectangle(cornerRadius: 10))
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hover = h } }
+    }
+}
+
+/// The session being transcribed (or whose voices are being told apart), and how many wait.
+private struct QueueCard: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        let queue = state.queue
+        if let job = queue.current {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 8) {
+                    Image(systemName: job.kind == .voices ? "person.2.wave.2" : "text.word.spacing")
+                        .foregroundStyle(.tint)
+                    Text(job.title).font(.callout.weight(.medium)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(queue.progress, format: .percent.precision(.fractionLength(0)))
+                        .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                ProgressView(value: queue.progress).progressViewStyle(.linear).animation(.smooth, value: queue.progress)
+                Group {
+                    if queue.jobs.count > 1 {
+                        Text(job.kind == .voices ? "Telling voices apart · \(queue.jobs.count - 1) waiting" : "Transcribing · \(queue.jobs.count - 1) waiting")
+                    } else {
+                        Text(job.kind == .voices ? "Telling voices apart" : "Transcribing")
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
+        }
+    }
+}
+
 private struct RecordingCard: View {
     @Environment(AppState.self) private var state
     @Environment(\.openWindow) private var openWindow
@@ -277,7 +370,11 @@ private struct RecordingCard: View {
                 Spacer()
                 LevelMeter(level: rec.level)
             }
-            if let last = rec.preview.isEmpty ? rec.segments.last?.text : rec.preview {
+            if rec.mode == .afterCall {
+                Label("Transcribed when the call ends, with each voice", systemImage: "clock")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let last = rec.preview.isEmpty ? rec.segments.last?.text : rec.preview {
                 Text(last).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentTransition(.opacity)

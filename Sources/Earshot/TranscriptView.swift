@@ -13,15 +13,35 @@ struct TranscriptWindow: View {
                 Banner(icon: "person.wave.2", text: Text("Allow Earshot in \(TeamsCaptions.settingName) to see who is speaking."), action: "Allow…") { rec.retryAccessibility() }
             }
             if let error = rec.error { Banner(icon: "exclamationmark.triangle.fill", text: Text(error)) }
+            let work = rec.isActive ? nil : state.queue.status(of: rec.folder)
+            if let work, work.kind == .voices || !rec.segments.isEmpty {
+                Banner(icon: "person.2.wave.2", text: Text(work.kind == .voices ? "Telling voices apart…" : "Transcribing again…")) {
+                    ProgressView(value: work.progress).frame(width: 80)
+                }
+            }
+            if let failure = rec.failure, rec.segments.isEmpty {
+                Banner(icon: "exclamationmark.triangle.fill", text: Text(failure))
+            }
             if rec.segments.isEmpty && rec.preview.isEmpty {
-                ContentUnavailableView {
-                    Label(rec.isActive ? "Listening…" : "Nothing recorded yet", systemImage: rec.isActive ? "waveform" : "ear")
-                } description: {
-                    Text(rec.isActive ? "Text appears here as soon as someone speaks." : "Pick an app from the menu bar to start.")
+                if let work {
+                    TranscribingView(waiting: work.waiting, progress: work.progress)
+                } else if rec.isActive && rec.mode == .afterCall {
+                    ContentUnavailableView {
+                        Label("Recording", systemImage: "record.circle")
+                    } description: {
+                        Text("The transcript is written when the call ends, with each voice. No model runs during the call.")
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label(rec.isActive ? "Listening…" : "Nothing recorded yet", systemImage: rec.isActive ? "waveform" : "ear")
+                    } description: {
+                        Text(rec.isActive ? "Text appears here as soon as someone speaks." : "Pick an app from the menu bar to start.")
+                    }
                 }
             } else {
                 TranscriptList(segments: rec.segments, startedAt: rec.startedAt, query: query,
-                               live: rec.state == .recording ? (rec.previewSpeaker, rec.preview) : nil)
+                               live: rec.state == .recording ? (rec.previewSpeaker, rec.preview) : nil,
+                               onRename: rec.state == .idle && work == nil ? { old in if let new = AppState.askName(for: old) { rec.rename(old, to: new); state.reloadLibrary() } } : nil)
             }
         }
         .frame(minWidth: 360, minHeight: 280)
@@ -94,6 +114,8 @@ struct TranscriptList: View {
     var query = ""
     /// (speaker, text) of the line being spoken, nil when not live.
     var live: (String?, String)? = nil
+    /// Makes speaker names clickable, to rename them.
+    var onRename: ((String?) -> Void)? = nil
 
     @ViewState private var following = true
     /// Bumped by "Back to live" to scroll down with an animation.
@@ -114,7 +136,7 @@ struct TranscriptList: View {
                     .padding(.horizontal, 20).padding(.top, 12)
             }
             TranscriptText(turns: turns, startedAt: startedAt, query: query, live: query.isEmpty ? live : nil,
-                           following: $following, jump: jump)
+                           following: $following, jump: jump, onRename: onRename)
         }
         .overlay(alignment: .bottom) {
             if !following && live != nil && query.isEmpty {
@@ -133,17 +155,53 @@ struct TranscriptList: View {
     }
 }
 
-private struct Banner: View {
+/// A session waiting for its transcript, or being transcribed.
+struct TranscribingView: View {
+    let waiting: Bool
+    let progress: Double
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "text.word.spacing").font(.system(size: 34, weight: .medium)).foregroundStyle(.tint)
+                .symbolEffect(.pulse, isActive: !waiting)
+            Text(waiting ? "Waiting to be transcribed" : "Transcribing…").font(.title3.weight(.semibold))
+            if !waiting {
+                ProgressView(value: progress).frame(width: 220).animation(.smooth, value: progress)
+                Text(progress, format: .percent.precision(.fractionLength(0))).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            Text("Each voice is told apart, and each sentence keeps its language. Everything runs on this Mac.")
+                .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 300)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+}
+
+struct Banner<Trailing: View>: View {
     let icon: String
     let text: Text
     var action: LocalizedStringKey? = nil
     var perform: () -> Void = {}
+    var trailing: Trailing
+
+    init(icon: String, text: Text, action: LocalizedStringKey? = nil, perform: @escaping () -> Void = {}) where Trailing == EmptyView {
+        self.init(icon: icon, text: text, action: action, perform: perform) { EmptyView() }
+    }
+
+    init(icon: String, text: Text, action: LocalizedStringKey? = nil, perform: @escaping () -> Void = {}, @ViewBuilder trailing: () -> Trailing) {
+        self.icon = icon
+        self.text = text
+        self.action = action
+        self.perform = perform
+        self.trailing = trailing()
+    }
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon).foregroundStyle(.orange)
             text.font(.callout).fixedSize(horizontal: false, vertical: true)
             Spacer()
+            trailing
             if let action { Button(action, action: perform).buttonStyle(.glass) }
         }
         .padding(12)

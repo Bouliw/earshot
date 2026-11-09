@@ -41,7 +41,7 @@ struct WhisperModel: Hashable, Identifiable {
 
 /// Thin wrapper over a whisper.cpp context. Not thread-safe: use from one queue.
 final class Whisper {
-    private var ctx: OpaquePointer?
+    private(set) var ctx: OpaquePointer?
 
     init?(model: URL) {
         var params = whisper_context_default_params()
@@ -116,7 +116,7 @@ final class StreamingTranscriber {
     private var whisper: Whisper?
     private let language: String
     /// Shared: the app and the microphone streams use the same whisper.cpp context, which is not thread-safe.
-    private static let queue = DispatchQueue(label: "earshot.whisper", qos: .userInitiated)
+    static let queue = DispatchQueue(label: "earshot.whisper", qos: .userInitiated)
     private var queue: DispatchQueue { Self.queue }
     private let lock = NSLock()
 

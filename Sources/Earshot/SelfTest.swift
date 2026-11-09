@@ -5,6 +5,8 @@ import AVFoundation
 /// and prints what would appear on screen. Checks the streaming logic without a call.
 /// `Earshot --subtitles <file> [apple|kyutai]`: plays an audio file through a subtitle engine in real time
 /// and prints each line once it is finished.
+/// `Earshot --after <file> [model]`: transcribes a file as after a call (voices, a language per piece) and
+/// prints each line with its speaker, its language and how long it all took.
 enum SelfTest {
     static func checks() {
         precondition(TeamsCaptions.displayName("DOE-EXTERNAL Jane") == "Jane Doe")
@@ -19,6 +21,9 @@ enum SelfTest {
         precondition(timeline.speaker(from: 22, to: 24) == "B")   // nothing new: last speaker still talking
         precondition(timeline.speaker(from: 60, to: 62) == nil)   // too long ago
         precondition(StreamingTranscriber.isNoise("[BLANK_AUDIO]") && !StreamingTranscriber.isNoise("Thank you."))
+        let voices = [VoiceTurn(start: 0, end: 10, voice: "S1"), VoiceTurn(start: 10, end: 20, voice: "S2")]
+        precondition(Voices.names(for: voices, marks: [NameMark(time: 2, name: "A"), NameMark(time: 5, name: "A")]) == ["S1": "A", "S2": String(localized: "Speaker \(1)")])
+        precondition(Voices.voice(from: 8, to: 14, in: voices) == "S2")
         let turns = Turn.group([Segment(start: 0, end: 2, speaker: "A", text: "Hi."), Segment(start: 2, end: 4, speaker: "A", text: "Yes."), Segment(start: 4, end: 5, speaker: "B", text: "Ok.")])
         precondition(turns.count == 2 && turns[0].text == "Hi. Yes.")
         let talking = MicMix()
@@ -52,6 +57,10 @@ enum SelfTest {
             precondition(String(localized: "Install (\(name))", bundle: fr) == "Installer (Teams)")
             precondition(String(localized: "Allow Earshot in \(name) to see who is speaking.", bundle: fr) == "Autorisez Earshot dans Teams pour savoir qui parle.")
             precondition(String(localized: "High subtitles stopped: \(name)", bundle: fr) == "Les sous-titres Élevé se sont arrêtés : Teams")
+            precondition(String(localized: "Speaker \(2)", bundle: fr) == "Intervenant 2")
+            precondition(String(localized: "Rename \(name)", bundle: fr) == "Renommer Teams")
+            precondition(String(localized: "Transcribing · \(3) waiting", bundle: fr) == "Transcription · 3 en attente")
+            precondition(String(localized: "\(name) has no sound Earshot can read.", bundle: fr) == "Teams n'a pas de son qu'Earshot peut lire.")
         }
         print("checks passed")
     }
@@ -59,6 +68,7 @@ enum SelfTest {
     static func runIfAsked() {
         let args = CommandLine.arguments
         if args.contains("--check") { checks(); exit(0) }
+        if let i = args.firstIndex(of: "--after"), i + 1 < args.count { after(args[i + 1], model: i + 2 < args.count ? args[i + 2] : "") }
         if let i = args.firstIndex(of: "--subtitles"), i + 1 < args.count {
             subtitles(samples(args[i + 1]), kind: SubtitleEngineKind(rawValue: i + 2 < args.count ? args[i + 2] : "") ?? .apple)
         }
@@ -85,6 +95,35 @@ enum SelfTest {
         done.wait()
         print("lines: \(lines), live previews: \(previews), audio \(samples.count / 16_000)s in \(Int(Date().timeIntervalSince(began)))s")
         assert(lines > 0, "speech should produce at least one line")
+        exit(0)
+    }
+
+    private static func after(_ path: String, model: String) -> Never {
+        let model = WhisperModel.preferred(model)!
+        print("model: \(model.name)")
+        setvbuf(stdout, nil, _IOLBF, 0)  // line by line, also when written to a file
+        Task {
+            do {
+                let began = Date()
+                let samples = try await AudioFile.samples(URL(filePath: path))
+                print(String(format: "audio: %.0fs, read in %.1fs", Double(samples.count) / 16_000, Date().timeIntervalSince(began)))
+                let voicesStart = Date()
+                let turns = try await VoiceSeparator.shared.turns(samples)
+                print(String(format: "voices: %d in %d turns, %.1fs", Set(turns.map(\.voice)).count, turns.count, Date().timeIntervalSince(voicesStart)))
+                for voice in Set(turns.map(\.voice)).sorted() {
+                    print(String(format: "  %@: %.0fs", voice, turns.filter { $0.voice == voice }.reduce(0) { $0 + $1.end - $1.start }))
+                }
+                let input = BatchTranscriber.Input(samples: samples, mic: nil, marks: [], language: "auto", separateVoices: true, model: model.url)
+                let segments = try await BatchTranscriber.run(input) { _ in }
+                for s in segments { print(String(format: "[%6.1f-%6.1f] ", s.start, s.end) + "\(s.speaker ?? "-"): \(s.text)") }
+                print(String(format: "lines: %d, total %.1fs", segments.count, Date().timeIntervalSince(began)))
+                exit(segments.isEmpty ? 1 : 0)
+            } catch {
+                print("error: \(error.localizedDescription)")
+                exit(1)
+            }
+        }
+        RunLoop.main.run()
         exit(0)
     }
 

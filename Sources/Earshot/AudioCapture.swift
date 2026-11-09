@@ -202,15 +202,19 @@ final class MicMix {
     var speechLevel: Float = 0.004
 
     /// App audio in, app + microphone out (for the saved file).
-    func mixApp(_ samples: [Float]) -> [Float] {
+    func mixApp(_ samples: [Float]) -> [Float] { split(samples).mix }
+
+    /// App audio in: app + microphone, and the microphone alone on the app's clock (for its own track).
+    func split(_ samples: [Float]) -> (mix: [Float], mic: [Float]) {
         let loud = samples.contains { abs($0) > speechLevel * 2 }
         lock.lock(); defer { lock.unlock() }
         if loud { appTalkingUntil = Date().addingTimeInterval(0.5) }
         var out = samples
+        var mic = [Float](repeating: 0, count: samples.count)
         let n = min(out.count, pending.count)
-        for i in 0..<n { out[i] += pending[i] }
+        for i in 0..<n { out[i] += pending[i]; mic[i] = pending[i] }
         pending.removeFirst(n)
-        return out
+        return (out, mic)
     }
 
     /// Microphone in, what the transcriber should hear out (silence while the app talks).
@@ -220,6 +224,52 @@ final class MicMix {
         pending += out
         if pending.count > 16_000 { pending.removeFirst(pending.count - 16_000) }  // keep the two clocks within 1 s
         return out
+    }
+}
+
+/// Sound saved as it comes, as raw 16 kHz 16-bit samples: there is nothing to finalize, so a forced quit, a crash
+/// or a Mac that shuts down loses at most the last buffer. Encoded to Audio.m4a once the recording is over.
+final class RawTrack {
+    let url: URL
+    private let handle: FileHandle
+
+    init(_ url: URL) throws {
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        handle = try FileHandle(forWritingTo: url)
+        try handle.seekToEnd()
+        self.url = url
+    }
+
+    /// From the audio thread.
+    func append(_ samples: [Float]) {
+        guard !samples.isEmpty else { return }
+        let pcm = samples.map { Int16(clamping: Int(($0 * 32_767).rounded())) }
+        pcm.withUnsafeBytes { try? handle.write(contentsOf: Data($0)) }
+    }
+
+    func close() { try? handle.close() }
+
+    static func read(_ url: URL) throws -> [Float] {
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        return data.withUnsafeBytes { raw in raw.bindMemory(to: Int16.self).map { Float($0) / 32_768 } }
+    }
+}
+
+/// The level of the captured sound, ten times a second, for the meter (when no live transcriber reports it).
+final class LevelFeed {
+    private let lock = NSLock()
+    private var last = Date.distantPast
+    private let report: (Float) -> Void
+
+    init(_ report: @escaping (Float) -> Void) { self.report = report }
+
+    func append(_ samples: [Float]) {
+        lock.lock()
+        let due = Date().timeIntervalSince(last) > 0.1
+        if due { last = Date() }
+        lock.unlock()
+        guard due else { return }
+        report(sqrt(samples.reduce(0) { $0 + $1 * $1 } / Float(max(samples.count, 1))))
     }
 }
 

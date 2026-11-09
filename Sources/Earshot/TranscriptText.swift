@@ -12,6 +12,8 @@ struct TranscriptText: NSViewRepresentable {
     @Binding var following: Bool
     /// Changes when the view should scroll down to the live line with an animation.
     let jump: Int
+    /// Called with a speaker's name (nil for unnamed lines) when it is clicked. Names are not links without it.
+    var onRename: ((String?) -> Void)? = nil
 
     func makeCoordinator() -> TranscriptScroller { TranscriptScroller() }
 
@@ -20,7 +22,8 @@ struct TranscriptText: NSViewRepresentable {
     func updateNSView(_ view: NSScrollView, context: Context) {
         let scroller = context.coordinator
         scroller.following = $following
-        scroller.show(TranscriptDocument(turns: turns, startedAt: startedAt, query: query, live: live),
+        scroller.onRename = onRename
+        scroller.show(TranscriptDocument(turns: turns, startedAt: startedAt, query: query, live: live, renamable: onRename != nil),
                       query: query, startedAt: startedAt, jump: jump)
     }
 
@@ -29,10 +32,12 @@ struct TranscriptText: NSViewRepresentable {
 
 /// Owns the scroll view and text view: applies new text without losing the selection, and follows the end.
 @MainActor
-final class TranscriptScroller {
+final class TranscriptScroller: NSObject, NSTextViewDelegate {
     let scrollView: FollowingScrollView
     let textView: TranscriptTextView
     var following: Binding<Bool>?
+    var onRename: ((String?) -> Void)?
+    private var speakers: [String?] = []
     private let storage = NSTextStorage()
     private var committedLength = 0
     private var query: String?
@@ -43,7 +48,7 @@ final class TranscriptScroller {
     private var blink: Timer?
     private var observers: [NSObjectProtocol] = []
 
-    init() {
+    override init() {
         let layout = NSLayoutManager()
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -54,6 +59,10 @@ final class TranscriptScroller {
         let text = TranscriptTextView(frame: NSRect(origin: .zero, size: scroll.contentSize), textContainer: container)
         scrollView = scroll
         textView = text
+        super.init()
+        text.delegate = self
+        // Speaker names are links only to be renamed: keep their color, show a pointing hand.
+        text.linkTextAttributes = [.cursor: NSCursor.pointingHand]
 
         text.isEditable = false
         text.isSelectable = true
@@ -91,7 +100,10 @@ final class TranscriptScroller {
         self.startedAt = startedAt
         self.query = query
         if let cursor, NSMaxRange(cursor) <= storage.length { layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: cursor) }
-        let changed = apply(doc, rebuild: newSession || newQuery)
+        // A different set of names (a rename) changes the links, not always the text.
+        let renamed = doc.speakers != speakers
+        speakers = doc.speakers
+        let changed = apply(doc, rebuild: newSession || newQuery || renamed)
         committedLength = doc.committedLength
         cursor = doc.cursor
         cursorShown = true
@@ -110,6 +122,14 @@ final class TranscriptScroller {
         } else if jumped || (changed && isFollowing && query.isEmpty) {
             scrollToEnd(animated: true)
         }
+    }
+
+    /// A click on a speaker's name: `earshot-speaker:<index in the document's speakers>`.
+    func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+        guard let text = (link as? URL)?.absoluteString ?? link as? String, text.hasPrefix(TranscriptDocument.linkPrefix),
+              let i = Int(text.dropFirst(TranscriptDocument.linkPrefix.count)), speakers.indices.contains(i) else { return false }
+        onRename?(speakers[i])
+        return true
     }
 
     func stop() {
@@ -319,11 +339,19 @@ final class TranscriptDocument {
     private(set) var avatars: [TranscriptTextView.Avatar] = []
     /// The blinking block at the end of the live line.
     private(set) var cursor: NSRange?
+    /// Speakers whose names are links, in order of appearance (nil: lines without a name).
+    private(set) var speakers: [String?] = []
+    static let linkPrefix = "earshot-speaker:"
 
-    init(turns: [Turn], startedAt: Date, query: String, live: (String?, String)?) {
+    init(turns: [Turn], startedAt: Date, query: String, live: (String?, String)?, renamable: Bool = false) {
         for turn in turns {
+            var link: String?
+            if renamable {
+                if !speakers.contains(turn.speaker) { speakers.append(turn.speaker) }
+                link = Self.linkPrefix + String(speakers.firstIndex(of: turn.speaker)!)
+            }
             add(turn.speaker, detail: startedAt.addingTimeInterval(turn.start).formatted(date: .omitted, time: .shortened),
-                text: turn.text, color: .labelColor, query: query)
+                text: turn.text, color: .labelColor, query: query, link: link)
         }
         committedLength = content.length
         if let live, !live.1.isEmpty {
@@ -333,14 +361,18 @@ final class TranscriptDocument {
         }
     }
 
-    private func add(_ speaker: String?, detail: String, text: String, color: NSColor, query: String) {
+    private func add(_ speaker: String?, detail: String, text: String, color: NSColor, query: String, link: String? = nil) {
         if content.length > 0 {
             content.append(NSAttributedString(string: "\n", attributes: [.font: Style.body, .paragraphStyle: Style.line]))
             content.append(NSAttributedString(string: "\n", attributes: [.font: Style.body, .paragraphStyle: Style.gap]))
         }
         avatars.append(.init(location: content.length, name: speaker))
-        content.append(NSAttributedString(string: speaker ?? String(localized: "Speaker"),
-                                          attributes: [.font: Style.name, .foregroundColor: TranscriptTextView.speakerColor(speaker), .paragraphStyle: Style.header]))
+        var name: [NSAttributedString.Key: Any] = [.font: Style.name, .foregroundColor: TranscriptTextView.speakerColor(speaker), .paragraphStyle: Style.header]
+        if let link {
+            name[.link] = link
+            name[.toolTip] = String(localized: "Rename this speaker")
+        }
+        content.append(NSAttributedString(string: speaker ?? String(localized: "Speaker"), attributes: name))
         content.append(NSAttributedString(string: "  \(detail)\n",
                                           attributes: [.font: Style.detail, .foregroundColor: NSColor.tertiaryLabelColor, .paragraphStyle: Style.header]))
         let line = NSMutableAttributedString(string: text, attributes: [.font: Style.body, .foregroundColor: color, .paragraphStyle: Style.line])
