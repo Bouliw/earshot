@@ -23,6 +23,10 @@ final class TranscriptionQueue {
     private(set) var jobs: [Job] = []
     /// 0...1, for the running job.
     private(set) var progress: Double = 0
+    /// True while the work waits for a recording to end.
+    private(set) var paused = false
+    /// Whether to hold the work for now: during a recording, nothing heavy runs (the point of "After the call").
+    var hold: () -> Bool = { false }
     var onFinished: (URL) -> Void = { _ in }
     private var worker: Task<Void, Never>?
 
@@ -45,11 +49,21 @@ final class TranscriptionQueue {
     private func drain() async {
         while let job = jobs.first {
             progress = 0
+            await waitWhileHeld()
             await run(job)
             jobs.removeFirst()
             onFinished(job.folder)
         }
         worker = nil
+    }
+
+    /// Returns once no recording is running; checked before each job and between the pieces of a transcript.
+    func waitWhileHeld() async {
+        while hold() {
+            paused = true
+            try? await Task.sleep(for: .seconds(2))
+        }
+        paused = false
     }
 
     private func run(_ job: Job) async {
@@ -67,6 +81,7 @@ final class TranscriptionQueue {
             switch job.kind {
             case .voices:
                 guard defaults.object(forKey: Pref.separateVoices) as? Bool ?? true else { break }
+                await waitWhileHeld()
                 let samples = exists(appTrack) ? try RawTrack.read(appTrack) : try await AudioFile.samples(audio)
                 record.segments = try await BatchTranscriber.relabel(record.segments, samples: samples, marks: record.names ?? [], progress: report)
             case .transcribe:
@@ -90,7 +105,8 @@ final class TranscriptionQueue {
                     samples: samples, mic: mic, marks: record.names ?? [],
                     language: defaults.string(forKey: Pref.language) ?? "auto",
                     separateVoices: defaults.object(forKey: Pref.separateVoices) as? Bool ?? true,
-                    model: model.url)
+                    model: model.url,
+                    pause: { [weak self] in await self?.waitWhileHeld() })
                 record.segments = try await BatchTranscriber.run(input, progress: report)
                 notify(record)
             }

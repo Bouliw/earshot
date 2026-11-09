@@ -96,6 +96,7 @@ final class AppState {
     init() {
         recorder.onFinished = { [weak self] _ in self?.reloadLibrary() }
         recorder.onQueued = { [weak self] folder, kind, title in self?.queue.add(folder, kind: kind, title: title) }
+        queue.hold = { [weak self] in self?.recorder.isActive ?? false }
         queue.onFinished = { [weak self] folder in
             guard let self else { return }
             reloadLibrary()

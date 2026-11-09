@@ -18,7 +18,7 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 ## Features
 
 - **One click.** The menu bar lists the apps playing sound right now. Click one to start.
-- **After the call, or live.** By default only the sound is saved during the call: no model runs, so the Mac stays cool, and the transcript is written once the call ends (a minute or two for an hour, on Apple silicon). Switch to **Live** in the menu to watch the text appear as it is said, before or during a call: switching mid-call keeps one session, and whatever was not transcribed live is written from the audio at the end.
+- **After the call, or live.** By default only the sound is saved during the call: no model runs, so the Mac stays cool, and the transcript is written once the call ends. Transcripts waiting for their turn also hold off while another recording runs. Switch to **Live** in the menu to watch the text appear as it is said, before or during a call: switching mid-call keeps one session, and whatever was not transcribed live is written from the audio at the end.
 - **Each voice told apart.** Once the call ends, Earshot works out who spoke when, on the Neural Engine. Lines get the Teams names when it can see them, "Speaker 1", "Speaker 2"… otherwise. Click a name to rename that speaker everywhere in the session; give two the same name to merge them.
 - **Files too.** "Transcribe a file…" (or a drop on the Library) takes any audio or video file macOS can open: a voice memo, a meeting recorded elsewhere. Each one is transcribed like a call, voices included.
 - **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript unless you ask. It works with the Mac muted.

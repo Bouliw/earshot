@@ -328,7 +328,9 @@ private struct QueueCard: View {
                 }
                 ProgressView(value: queue.progress).progressViewStyle(.linear).animation(.smooth, value: queue.progress)
                 Group {
-                    if queue.jobs.count > 1 {
+                    if queue.paused {
+                        Text("Waits for the recording to end, so nothing heavy runs meanwhile")
+                    } else if queue.jobs.count > 1 {
                         Text(job.kind == .voices ? "Telling voices apart · \(queue.jobs.count - 1) waiting" : "Transcribing · \(queue.jobs.count - 1) waiting")
                     } else {
                         Text(job.kind == .voices ? "Telling voices apart" : "Transcribing")

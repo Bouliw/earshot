@@ -157,14 +157,17 @@ struct TranscriptList: View {
 
 /// A session waiting for its transcript, or being transcribed.
 struct TranscribingView: View {
+    @Environment(AppState.self) private var state
     let waiting: Bool
     let progress: Double
+    private var paused: Bool { state.queue.paused }
 
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "text.word.spacing").font(.system(size: 34, weight: .medium)).foregroundStyle(.tint)
                 .symbolEffect(.pulse, isActive: !waiting)
             Text(waiting ? "Waiting to be transcribed" : "Transcribing…").font(.title3.weight(.semibold))
+            if paused { Text("Waits for the recording to end, so nothing heavy runs meanwhile").font(.callout).foregroundStyle(.secondary) }
             if !waiting {
                 ProgressView(value: progress).frame(width: 220).animation(.smooth, value: progress)
                 Text(progress, format: .percent.precision(.fractionLength(0))).font(.callout.monospacedDigit()).foregroundStyle(.secondary)

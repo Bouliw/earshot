@@ -136,10 +136,13 @@ enum BatchTranscriber {
         var language: String          // "auto", "en", "fr"
         var separateVoices: Bool
         var model: URL
+        /// Awaited before each piece: holds the work while a recording runs.
+        var pause: @Sendable () async -> Void = {}
     }
 
     /// Progress goes 0...1: voices take the first tenth, transcription the rest.
     static func run(_ input: Input, progress: @escaping @Sendable (Double) -> Void) async throws -> [Segment] {
+        await input.pause()
         var turns: [VoiceTurn] = []
         if input.separateVoices {
             // A failure here (no network for the first download, say) still leaves a transcript, without voices.
@@ -160,6 +163,7 @@ enum BatchTranscriber {
         for (list, samples, mic) in [(pieces, input.samples, false), (micPieces, input.mic ?? [], true)] {
             for piece in list {
                 try Task.checkCancellation()
+                await input.pause()
                 let a = max(0, Int(piece.start * Chunker.rate)), b = min(samples.count, Int(piece.end * Chunker.rate))
                 guard a < b else { continue }
                 var audio = Array(samples[a..<b])
