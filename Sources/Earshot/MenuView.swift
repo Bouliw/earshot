@@ -370,14 +370,29 @@ private struct RecordingCard: View {
                 Spacer()
                 LevelMeter(level: rec.level)
             }
+            // Same choice as before starting, switchable at any time without starting a new session.
+            Picker("Transcribe", selection: Binding(get: { rec.mode }, set: { rec.switchMode(to: $0) })) {
+                Text("After the call").tag(TranscriptionMode.afterCall)
+                Text("Live").tag(TranscriptionMode.live)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(rec.state != .recording)
             if rec.mode == .afterCall {
                 Label("Transcribed when the call ends, with each voice", systemImage: "clock")
                     .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if let last = rec.preview.isEmpty ? rec.segments.last?.text : rec.preview {
                 Text(last).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentTransition(.opacity)
+            } else {
+                Label("Text appears as soon as someone speaks", systemImage: "waveform")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 Button { NSApp.activate(); openWindow(id: "transcript") } label: { Label("Show transcript", systemImage: "text.bubble") }

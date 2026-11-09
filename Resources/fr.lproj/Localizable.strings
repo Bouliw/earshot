@@ -151,3 +151,4 @@
 /* Errors: after the call */
 "%@ has no sound Earshot can read." = "%@ n'a pas de son qu'Earshot peut lire.";
 "The audio of this session is missing." = "Le son de cette session est introuvable.";
+"Text appears as soon as someone speaks" = "Le texte s'affiche dès que quelqu'un parle";

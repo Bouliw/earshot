@@ -60,10 +60,14 @@ final class Recorder {
     var subtitlesOn = false
 
     private var tap: AudioTap?
-    private var transcriber: StreamingTranscriber?
+    /// The live transcribers, swapped in and out when the mode changes during a call.
+    private let appSlot = TranscriberSlot()
+    private let micSlot = TranscriberSlot()
     private var captions: TeamsCaptions?
     private var microphone: Microphone?
-    private var micTranscriber: StreamingTranscriber?
+    private var mixer: MicMix?
+    /// Part of this session was recorded "After the call": its whole transcript is written from the audio at the end.
+    private var deferred = false
     private var timeline = SpeakerTimeline()
     private var audioTrack: RawTrack?
     private var appTrack: RawTrack?
@@ -113,39 +117,16 @@ final class Recorder {
         self.folder = folder
         record = SessionRecord(title: title, appName: app.name, bundleID: app.bundleID, startedAt: startedAt, duration: 0, segments: [])
 
-        let language = defaults.string(forKey: Pref.language) ?? "auto"
         // After the call: no model while recording, only the sound is saved (and a level for the meter).
-        var transcriber: StreamingTranscriber?
-        var meter: LevelFeed?
-        if mode == .live {
-            let live = StreamingTranscriber(model: model.url, language: language)
-            live.onCommit = { [weak self] segs in Task { @MainActor in self?.commit(segs) } }
-            live.onPreview = { [weak self] text in Task { @MainActor in self?.preview = text; self?.previewSpeaker = self?.timeline.latest } }
-            live.onLevel = { [weak self] rms in Task { @MainActor in self?.level = rms } }
-            live.onError = { [weak self] message in Task { @MainActor in self?.error = message } }
-            transcriber = live
-        } else {
-            meter = LevelFeed { [weak self] rms in Task { @MainActor in self?.level = rms } }
-        }
-        self.transcriber = transcriber
+        deferred = mode == .afterCall
+        let meter = LevelFeed { [weak self] rms in Task { @MainActor in self?.level = rms } }
 
         var mix: MicMix?
-        var micTranscriber: StreamingTranscriber?
         if defaults.bool(forKey: Pref.includeMic) {
-            if await Microphone.requestAccess() {
-                mix = MicMix()
-                if mode == .live {
-                    let live = StreamingTranscriber(model: model.url, language: language)
-                    live.onCommit = { [weak self] segs in
-                        Task { @MainActor in self?.commit(segs.map { s in var s = s; s.speaker = Microphone.speakerName; s.mic = true; return s }) }
-                    }
-                    micTranscriber = live
-                }
-            } else {
-                error = Microphone.Failure.denied.localizedDescription
-            }
+            if await Microphone.requestAccess() { mix = MicMix() } else { error = Microphone.Failure.denied.localizedDescription }
         }
-        self.micTranscriber = micTranscriber
+        mixer = mix
+        if mode == .live { startLive(model: model.url, at: 0) }
 
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -154,10 +135,10 @@ final class Recorder {
                 appTrack = try RawTrack(folder.appending(path: SessionStore.appTrackName))
                 micTrack = try RawTrack(folder.appending(path: SessionStore.micTrackName))
             }
-            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = transcriber, liveMic = micTranscriber, levels = meter, mixer = mix
+            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = appSlot, liveMic = micSlot, mixer = mix
             tap = try AudioTap(processes: app.processes) { samples in
-                live?.append(samples)
-                levels?.append(samples)
+                live.append(samples)
+                meter.append(samples)
                 sink.append(samples)
                 appOnly?.append(samples)
                 if let mixer {
@@ -171,7 +152,7 @@ final class Recorder {
             if let mixer {
                 microphone = try Microphone { samples in
                     let heard = mixer.gateMic(samples)
-                    liveMic?.append(heard)
+                    liveMic.append(heard)
                 }
             }
         } catch {
@@ -197,22 +178,63 @@ final class Recorder {
         microphone = nil
         watchdog?.invalidate()
         // After the call there is nothing to flush: the sound is all saved.
-        guard let transcriber else { finish(); return }
-        let micTranscriber = micTranscriber
-        let finishMic: (@escaping () -> Void) -> Void = { done in if let micTranscriber { micTranscriber.finish(done) } else { done() } }
-        transcriber.finish { [weak self] in
-            finishMic { Task { @MainActor in self?.finish() } }
+        flushLive { [weak self] in Task { @MainActor in self?.finish() } }
+    }
+
+    /// Switches between live and after the call without starting a new session. Going live, the text starts
+    /// from now on (the part before is written at the end, from the audio); going back, the live text so far stays
+    /// until the whole session is transcribed from the audio at the end.
+    func switchMode(to new: TranscriptionMode) {
+        guard state == .recording, new != mode else { return }
+        if new == .live {
+            guard let model = WhisperModel.preferred(UserDefaults.standard.string(forKey: Pref.model) ?? "") else {
+                error = String(localized: "No Whisper model found. Put a ggml model in ~/Library/Application Support/Earshot/Models.")
+                return
+            }
+            startLive(model: model.url, at: elapsed)
+        } else {
+            deferred = true
+            flushLive {}
+            preview = ""
         }
+        mode = new
+    }
+
+    /// Live transcribers for the app (and the microphone), their times counted from `offset` in the session.
+    private func startLive(model: URL, at offset: TimeInterval) {
+        let language = UserDefaults.standard.string(forKey: Pref.language) ?? "auto"
+        let live = StreamingTranscriber(model: model, language: language)
+        live.onCommit = { [weak self] segs in Task { @MainActor in self?.commit(segs.map { s in var s = s; s.start += offset; s.end += offset; return s }) } }
+        live.onPreview = { [weak self] text in Task { @MainActor in
+            guard let self, self.mode == .live else { return }
+            self.preview = text
+            self.previewSpeaker = self.timeline.latest
+        } }
+        live.onError = { [weak self] message in Task { @MainActor in self?.error = message } }
+        appSlot.transcriber = live
+        guard mixer != nil else { return }
+        let mic = StreamingTranscriber(model: model, language: language)
+        mic.onCommit = { [weak self] segs in
+            Task { @MainActor in self?.commit(segs.map { s in var s = s; s.start += offset; s.end += offset; s.speaker = Microphone.speakerName; s.mic = true; return s }) }
+        }
+        micSlot.transcriber = mic
+    }
+
+    /// Takes the live transcribers off the audio and lets them write what they still hold, then calls `done`.
+    private func flushLive(_ done: @escaping () -> Void) {
+        let app = appSlot.take(), mic = micSlot.take()
+        let finishMic: (@escaping () -> Void) -> Void = { next in if let mic { mic.finish(next) } else { next() } }
+        if let app { app.finish { finishMic(done) } } else { finishMic(done) }
     }
 
     private func finish() {
         captions?.stop()
-        if mode == .live { attributeSpeakers(since: 0) }
+        attributeSpeakers(since: 0)
         for track in [audioTrack, appTrack, micTrack] { track?.close() }
         audioTrack = nil
         appTrack = nil
         micTrack = nil
-        if mode == .afterCall { record?.status = .pending }
+        if deferred { record?.status = .pending }
         save()
         guard let folder else { cleanUp(); return }
         // Encoding an hour of sound takes a few seconds: off the main thread, the window stays responsive.
@@ -225,7 +247,7 @@ final class Recorder {
     private func queueAfterRecording() {
         if let record, let folder {
             let voices = UserDefaults.standard.object(forKey: Pref.separateVoices) as? Bool ?? true
-            if mode == .afterCall {
+            if deferred {
                 onQueued(folder, .transcribe, record.title)
             } else if voices, segments.contains(where: { $0.mic != true }) {
                 onQueued(folder, .voices, record.title)
@@ -343,8 +365,9 @@ final class Recorder {
         tap?.stop(); tap = nil
         microphone?.stop(); microphone = nil
         captions?.stop(); captions = nil
-        transcriber = nil
-        micTranscriber = nil
+        _ = appSlot.take()
+        _ = micSlot.take()
+        mixer = nil
         for track in [audioTrack, appTrack, micTrack] { track?.close() }
         audioTrack = nil
         appTrack = nil

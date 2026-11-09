@@ -255,6 +255,26 @@ final class RawTrack {
     }
 }
 
+/// The live transcriber the audio thread feeds, if any: set and cleared from the main thread when the mode changes.
+final class TranscriberSlot {
+    private let lock = NSLock()
+    private var value: StreamingTranscriber?
+
+    var transcriber: StreamingTranscriber? {
+        get { lock.lock(); defer { lock.unlock() }; return value }
+        set { lock.lock(); value = newValue; lock.unlock() }
+    }
+
+    func take() -> StreamingTranscriber? {
+        lock.lock(); defer { lock.unlock() }
+        let t = value
+        value = nil
+        return t
+    }
+
+    func append(_ samples: [Float]) { transcriber?.append(samples) }
+}
+
 /// The level of the captured sound, ten times a second, for the meter (when no live transcriber reports it).
 final class LevelFeed {
     private let lock = NSLock()
