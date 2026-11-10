@@ -48,6 +48,8 @@ struct TranscriptWindow: View {
                 TranscriptList(segments: rec.segments, startedAt: rec.startedAt, query: query,
                                live: rec.state == .recording ? (rec.previewSpeaker, rec.preview) : nil,
                                onRename: rec.state == .idle && work == nil ? { old in if let new = AppState.askName(for: old) { rec.rename(old, to: new); state.reloadLibrary() } } : nil)
+                // Once text fills the window, Stop moves from the middle to a bar that stays at the bottom.
+                if rec.isActive { RecordingBar() }
             }
         }
         .frame(minWidth: 360, minHeight: 280)
@@ -64,10 +66,8 @@ struct TranscriptWindow: View {
                     Label("Copy the whole transcript", systemImage: copied ? "checkmark" : "doc.on.doc").contentTransition(.symbolEffect(.replace))
                 }
                 .help("Copy the whole transcript")
-                if rec.state == .recording {
-                    Button { rec.stop() } label: { Label("Stop and save", systemImage: "stop.fill").foregroundStyle(.red) }
-                        .help("Stop and save")
-                } else if let folder = rec.folder, rec.state == .idle {
+                // No Stop here: it is always in the window itself, in the middle or in the bottom bar.
+                if let folder = rec.folder, rec.state == .idle {
                     Button { NSWorkspace.shared.activateFileViewerSelecting([folder.appending(path: "Transcript.txt")]) } label: { Label("Show in Finder", systemImage: "folder") }
                         .help("Show in Finder")
                 }
@@ -94,26 +94,63 @@ struct TranscriptWindow: View {
     }
 }
 
-/// Stop and mode switch, right under the "Recording" message, so nobody has to find them in the toolbar.
-private struct RecordingActions: View {
+/// The red Stop button, with its shortcut written on it (⌘↩), shared by the middle of the window and the bottom bar.
+private struct StopButton: View {
+    @Environment(AppState.self) private var state
+    var large = false
+
+    var body: some View {
+        let rec = state.recorder
+        Button { rec.stop() } label: {
+            HStack(spacing: 8) {
+                Label(rec.mode == .live ? "Stop and save" : "Stop and transcribe", systemImage: "stop.fill")
+                Text("⌘↩").font(.caption.weight(.medium)).opacity(0.7)
+            }
+            .frame(minWidth: large ? 200 : nil)
+        }
+        .buttonStyle(.glassProminent).tint(.red).controlSize(large ? .large : .regular)
+        .keyboardShortcut(.return, modifiers: .command)
+        .disabled(rec.state != .recording)
+    }
+}
+
+/// Switching mode mid-call is rare: a quiet link, so it is never clicked instead of Stop.
+private struct ModeLink: View {
     @Environment(AppState.self) private var state
 
     var body: some View {
         let rec = state.recorder
         let live = rec.mode == .live
-        VStack(spacing: 10) {
-            Button { rec.stop() } label: {
-                Label(live ? "Stop and save" : "Stop and transcribe", systemImage: "stop.fill").frame(minWidth: 190)
-            }
-            .buttonStyle(.glassProminent).tint(.red).controlSize(.large)
-            .keyboardShortcut(.return, modifiers: .command)
-            Button { rec.switchMode(to: live ? .afterCall : .live) } label: {
-                Label(live ? "Transcribe after the call" : "Transcribe live", systemImage: live ? "clock" : "waveform").frame(minWidth: 190)
-            }
-            .buttonStyle(.glass).controlSize(.large)
+        Button(live ? "Transcribe after the call instead" : "Transcribe live instead") { rec.switchMode(to: live ? .afterCall : .live) }
+            .buttonStyle(.link).font(.callout)
+            .disabled(rec.state != .recording)
+            .help(live ? "Stop the model now; the rest is transcribed from the audio after the call" : "Words appear as they are said; the Mac works harder during the call")
+    }
+}
+
+/// Under the "Recording" message while the window is still empty.
+private struct RecordingActions: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            StopButton(large: true)
+            ModeLink()
         }
-        .disabled(rec.state != .recording)
         .padding(.top, 6)
+    }
+}
+
+/// Pinned to the bottom while recording once text is shown, so Stop never scrolls away or hides in the toolbar.
+private struct RecordingBar: View {
+    var body: some View {
+        // Side by side when the window is wide enough, stacked in a narrow one.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { ModeLink(); Spacer(minLength: 12); StopButton() }
+            VStack(spacing: 8) { StopButton(); ModeLink() }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 

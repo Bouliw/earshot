@@ -156,5 +156,7 @@
 
 /* Recording window buttons */
 "Stop and transcribe" = "Arrêter et transcrire";
-"Transcribe live" = "Transcrire en direct";
-"Transcribe after the call" = "Transcrire après l'appel";
+"Transcribe live instead" = "Plutôt transcrire en direct";
+"Transcribe after the call instead" = "Plutôt transcrire après l'appel";
+"Stop the model now; the rest is transcribed from the audio after the call" = "Arrête le modèle maintenant ; la suite est transcrite à partir de l'audio après l'appel";
+"Words appear as they are said; the Mac works harder during the call" = "Les mots s'affichent au fil de l'eau ; le Mac travaille plus pendant l'appel";
