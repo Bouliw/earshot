@@ -153,3 +153,8 @@
 "The audio of this session is missing." = "Le son de cette session est introuvable.";
 "Text appears as soon as someone speaks" = "Le texte s'affiche dès que quelqu'un parle";
 "Waits for the recording to end, so nothing heavy runs meanwhile" = "Attend la fin de l'enregistrement, pour que rien de lourd ne tourne en même temps";
+
+/* Recording window buttons */
+"Stop and transcribe" = "Arrêter et transcrire";
+"Transcribe live" = "Transcrire en direct";
+"Transcribe after the call" = "Transcrire après l'appel";

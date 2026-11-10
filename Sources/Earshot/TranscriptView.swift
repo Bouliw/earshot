@@ -30,13 +30,19 @@ struct TranscriptWindow: View {
                         Label("Recording", systemImage: "record.circle")
                     } description: {
                         Text("The transcript is written when the call ends, with each voice. No model runs during the call.")
+                    } actions: {
+                        RecordingActions()
                     }
+                    .padding(.bottom, 48)
                 } else {
                     ContentUnavailableView {
                         Label(rec.isActive ? "Listening…" : "Nothing recorded yet", systemImage: rec.isActive ? "waveform" : "ear")
                     } description: {
                         Text(rec.isActive ? "Text appears here as soon as someone speaks." : "Pick an app from the menu bar to start.")
+                    } actions: {
+                        if rec.isActive { RecordingActions() }
                     }
+                    .padding(.bottom, rec.isActive ? 48 : 0)
                 }
             } else {
                 TranscriptList(segments: rec.segments, startedAt: rec.startedAt, query: query,
@@ -54,14 +60,15 @@ struct TranscriptWindow: View {
                 Button {
                     copyAll()
                 } label: {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc").contentTransition(.symbolEffect(.replace))
+                    // Labels, not bare images: a narrow window moves these into the » menu, which shows the titles.
+                    Label("Copy the whole transcript", systemImage: copied ? "checkmark" : "doc.on.doc").contentTransition(.symbolEffect(.replace))
                 }
                 .help("Copy the whole transcript")
                 if rec.state == .recording {
-                    Button { rec.stop() } label: { Image(systemName: "stop.fill").foregroundStyle(.red) }
+                    Button { rec.stop() } label: { Label("Stop and save", systemImage: "stop.fill").foregroundStyle(.red) }
                         .help("Stop and save")
                 } else if let folder = rec.folder, rec.state == .idle {
-                    Button { NSWorkspace.shared.activateFileViewerSelecting([folder.appending(path: "Transcript.txt")]) } label: { Image(systemName: "folder") }
+                    Button { NSWorkspace.shared.activateFileViewerSelecting([folder.appending(path: "Transcript.txt")]) } label: { Label("Show in Finder", systemImage: "folder") }
                         .help("Show in Finder")
                 }
             }
@@ -84,6 +91,29 @@ struct TranscriptWindow: View {
         NSPasteboard.general.setString(SessionStore.text(record), forType: .string)
         withAnimation { copied = true }
         Task { try? await Task.sleep(for: .seconds(1.5)); withAnimation { copied = false } }
+    }
+}
+
+/// Stop and mode switch, right under the "Recording" message, so nobody has to find them in the toolbar.
+private struct RecordingActions: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        let rec = state.recorder
+        let live = rec.mode == .live
+        VStack(spacing: 10) {
+            Button { rec.stop() } label: {
+                Label(live ? "Stop and save" : "Stop and transcribe", systemImage: "stop.fill").frame(minWidth: 190)
+            }
+            .buttonStyle(.glassProminent).tint(.red).controlSize(.large)
+            .keyboardShortcut(.return, modifiers: .command)
+            Button { rec.switchMode(to: live ? .afterCall : .live) } label: {
+                Label(live ? "Transcribe after the call" : "Transcribe live", systemImage: live ? "clock" : "waveform").frame(minWidth: 190)
+            }
+            .buttonStyle(.glass).controlSize(.large)
+        }
+        .disabled(rec.state != .recording)
+        .padding(.top, 6)
     }
 }
 
