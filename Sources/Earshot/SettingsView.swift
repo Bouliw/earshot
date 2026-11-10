@@ -16,9 +16,11 @@ struct SettingsView: View {
     private let models = WhisperModel.installed()
 
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
             Section {
                 Toggle("Open at login", isOn: $openAtLogin)
+                    .id("top")
                     .toggleStyle(.checkbox)
                     .onChange(of: openAtLogin) { _, on in
                         do {
@@ -103,8 +105,15 @@ struct SettingsView: View {
             // The grant happens in System Settings, so watch for it while this window is open.
             while !Task.isCancelled { trusted = TeamsCaptions.isTrusted; try? await Task.sleep(for: .seconds(1)) }
         }
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+        // Fixed height: the grouped form scrolls, so the window fits on a laptop screen.
+        .frame(width: 480, height: 560)
+        .defaultScrollAnchor(.top)
+        // The window keeps its last scroll position and follows the focused control: always open at the top.
+        .onAppear {
+            proxy.scrollTo("top", anchor: .top)
+            Task { try? await Task.sleep(for: .milliseconds(150)); proxy.scrollTo("top", anchor: .top) }
+        }
+        }
     }
 
     private func choose() {
