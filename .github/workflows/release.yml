@@ -1,5 +1,6 @@
-# Builds Earshot.dmg on a Mac when a version tag is pushed, attaches it to the draft release of that tag
-# and publishes it, so the download link in the README never points to a release without its DMG.
+# Builds Earshot.dmg on a Mac when a version tag is pushed, then publishes the release with the DMG attached,
+# so the download link in the README never points to a release without its DMG. The release notes are the
+# message of the annotated tag.
 name: Release
 
 on:
@@ -30,9 +31,11 @@ jobs:
           hdiutil attach -quiet -nobrowse -mountpoint "$RUNNER_TEMP/dmg" build/Earshot.dmg
           "$RUNNER_TEMP/dmg/Earshot.app/Contents/MacOS/Earshot" --check
           hdiutil detach -quiet "$RUNNER_TEMP/dmg"
-      - name: Attach the DMG and publish the release
+      - name: Publish the release with the DMG
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" build/Earshot.dmg --clobber --repo "$GITHUB_REPOSITORY"
-          gh release edit "$GITHUB_REF_NAME" --draft=false --latest --repo "$GITHUB_REPOSITORY"
+          git fetch --depth=1 origin "+refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" build/Earshot.dmg --title "Earshot ${GITHUB_REF_NAME#v}" \
+            --notes-file "$RUNNER_TEMP/notes.md" --latest --repo "$GITHUB_REPOSITORY"
