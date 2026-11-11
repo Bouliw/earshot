@@ -61,6 +61,8 @@ enum SelfTest {
             precondition(String(localized: "Rename \(name)", bundle: fr) == "Renommer Teams")
             precondition(String(localized: "Transcribing · \(3) waiting", bundle: fr) == "Transcription · 3 en attente")
             precondition(String(localized: "\(name) has no sound Earshot can read.", bundle: fr) == "Teams n'a pas de son qu'Earshot peut lire.")
+            precondition(String(localized: "Indexed: \(name) · \(3) files", bundle: fr) == "Indexé : Teams · 3 fichiers")
+            precondition(String(localized: "doc-indexer stopped (code \(2)).", bundle: fr) == "doc-indexer s'est arrêté (code 2).")
         }
         print("checks passed")
     }

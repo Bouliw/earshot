@@ -94,12 +94,15 @@ final class AppState {
     private var base: URL { URL(filePath: UserDefaults.standard.string(forKey: Pref.folder) ?? Pref.defaultFolder) }
 
     init() {
-        recorder.onFinished = { [weak self] _ in self?.reloadLibrary() }
+        recorder.onFinished = { [weak self] _ in self?.reloadLibrary(); DocIndexer.shared.schedule() }
         recorder.onQueued = { [weak self] folder, kind, title in self?.queue.add(folder, kind: kind, title: title) }
         queue.hold = { [weak self] in self?.recorder.isActive ?? false }
+        // Indexing waits for the call and for the transcripts: only one thing works at a time.
+        DocIndexer.shared.hold = { [weak self] in guard let self else { return false }; return recorder.isActive || queue.current != nil }
         queue.onFinished = { [weak self] folder in
             guard let self else { return }
             reloadLibrary()
+            DocIndexer.shared.schedule()
             if let record = SessionStore.load(folder) { recorder.refresh(record) }
         }
         if demo { Demo.fill(self) } else {
@@ -152,6 +155,7 @@ final class AppState {
         guard let folder = record.folder, var saved = SessionStore.load(folder) else { return }
         saved.rename(old, to: new)
         SessionStore.write(saved, to: folder)
+        DocIndexer.shared.schedule()
         recorder.refresh(saved)
         reloadLibrary()
     }

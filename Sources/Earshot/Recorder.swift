@@ -14,6 +14,9 @@ enum Pref {
     static let subtitleSize = "subtitleSize"
     static let mode = "transcriptionMode"   // TranscriptionMode
     static let separateVoices = "separateVoices"
+    static let indexTranscripts = "indexTranscripts"
+    static let indexer = "docIndexerScript"   // path to doc-indexer's extract_texts.py ("": found by itself)
+    static let indexFolder = "indexFolder"    // "": the folder sessions are saved to
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
 }
 
@@ -272,6 +275,7 @@ final class Recorder {
         segments = record.segments
         self.record = record
         SessionStore.write(record, to: folder)
+        DocIndexer.shared.schedule()
     }
 
 

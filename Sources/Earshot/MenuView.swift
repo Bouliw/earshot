@@ -9,6 +9,7 @@ struct MenuView: View {
     @ViewState private var showQuiet = false
     @AppStorage(Pref.includeMic) private var includeMic = false
     @AppStorage(Pref.mode) private var mode = TranscriptionMode.afterCall.rawValue
+    @AppStorage(Pref.subtitles) private var subtitles = false
 
     private var playing: [AudioApp] { state.apps.filter(\.isPlaying) }
     private var quiet: [AudioApp] { state.apps.filter { !$0.isPlaying } }
@@ -22,9 +23,13 @@ struct MenuView: View {
                 if let event = state.event { EventChip(title: event.title, end: event.end) }
                 appList
                 modePicker
-                Toggle("Include my microphone", isOn: $includeMic)
-                    .toggleStyle(.checkbox).font(.callout).padding(.horizontal, 8)
-                    .help("Also transcribe what you say, under your name.")
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Include my microphone", isOn: $includeMic)
+                        .help("Also transcribe what you say, under your name.")
+                    Toggle("Show live subtitles", isOn: $subtitles)
+                        .help("Show the last two lines said in a small window")
+                }
+                .toggleStyle(.checkbox).font(.callout).padding(.horizontal, 8)
             }
             if state.queue.current != nil { QueueCard() }
             if let error = state.recorder.error {
@@ -399,6 +404,7 @@ private struct RecordingCard: View {
             HStack {
                 Button { NSApp.activate(); openWindow(id: "transcript") } label: { Label("Show transcript", systemImage: "text.bubble") }
                     .buttonStyle(.glass)
+                SubtitlesToggle(compact: true)
                 Spacer()
                 Button { rec.stop() } label: { Label("Stop", systemImage: "stop.fill") }
                     .buttonStyle(.glassProminent).tint(.red).disabled(rec.state != .recording)

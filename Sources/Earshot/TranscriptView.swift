@@ -133,6 +133,7 @@ private struct RecordingActions: View {
     var body: some View {
         VStack(spacing: 12) {
             StopButton(large: true)
+            SubtitlesToggle()
             ModeLink()
         }
         .padding(.top, 6)
@@ -144,8 +145,8 @@ private struct RecordingBar: View {
     var body: some View {
         // Side by side when the window is wide enough, stacked in a narrow one.
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) { ModeLink(); Spacer(minLength: 12); StopButton() }
-            VStack(spacing: 8) { StopButton(); ModeLink() }
+            HStack(spacing: 12) { ModeLink(); Spacer(minLength: 12); SubtitlesToggle(); StopButton() }
+            VStack(spacing: 8) { HStack(spacing: 8) { SubtitlesToggle(); StopButton() }; ModeLink() }
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .frame(maxWidth: .infinity)

@@ -11,6 +11,9 @@ struct SettingsView: View {
     @AppStorage(Pref.subtitleSize) private var subtitleSize = 24.0
     @AppStorage(Pref.mode) private var mode = TranscriptionMode.afterCall.rawValue
     @AppStorage(Pref.separateVoices) private var separateVoices = true
+    @AppStorage(Pref.indexTranscripts) private var indexTranscripts = false
+    @AppStorage(Pref.indexer) private var indexer = ""
+    @AppStorage(Pref.indexFolder) private var indexFolder = ""
     @ViewState private var trusted = TeamsCaptions.isTrusted
     @ViewState private var openAtLogin = SMAppService.mainApp.status == .enabled
     private let models = WhisperModel.installed()
@@ -83,7 +86,36 @@ struct SettingsView: View {
             } header: {
                 Text("Sessions")
             } footer: {
-                Text("Each session goes in a folder named after its calendar event, then the date. The transcript is a plain text file, so a folder indexer such as doc-indexer can search it with your documents.").foregroundStyle(.secondary)
+                Text("Each session goes in a folder named after its calendar event, then the date, with its transcript as a plain text file.").foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Index transcripts with doc-indexer", isOn: $indexTranscripts)
+                    .onChange(of: indexTranscripts) { _, on in
+                        guard on else { return }
+                        if DocIndexer.script == nil { chooseIndexer() }
+                        if DocIndexer.script == nil { indexTranscripts = false } else { DocIndexer.shared.indexNow() }
+                    }
+                if indexTranscripts {
+                    LabeledContent("doc-indexer") {
+                        HStack {
+                            Text(DocIndexer.script.map { ($0.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath } ?? String(localized: "Not found"))
+                                .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                                .id(indexer)  // read again once another one is chosen
+                            Button("Choose…", action: chooseIndexer)
+                        }
+                    }
+                    LabeledContent("Folder to index") {
+                        HStack {
+                            Text(((indexFolder.isEmpty ? folder : indexFolder) as NSString).abbreviatingWithTildeInPath).lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                            Button("Choose…", action: chooseIndexFolder)
+                        }
+                    }
+                    IndexStatusRow()
+                }
+            } header: {
+                Text("Search with your documents")
+            } footer: {
+                Text("After each transcript, once no call is being recorded, Earshot runs doc-indexer on this folder at low priority, so the Mac stays cool. Your transcripts and documents can then be searched together in its hidden .doc-index folder. Nothing leaves this Mac.").foregroundStyle(.secondary)
             }
             Section {
                 LabeledContent(TeamsCaptions.settingName) {
@@ -123,6 +155,58 @@ struct SettingsView: View {
         panel.canCreateDirectories = true
         panel.directoryURL = URL(filePath: folder)
         if panel.runModal() == .OK, let url = panel.url { folder = url.path }
+    }
+
+    /// doc-indexer's folder or its extract_texts.py.
+    private func chooseIndexer() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = true
+        panel.message = String(localized: "Choose your doc-indexer-macos folder, or extract_texts.py in it.")
+        panel.directoryURL = DocIndexer.script?.deletingLastPathComponent() ?? FileManager.default.homeDirectoryForCurrentUser
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let script = DocIndexer.script(from: url) { indexer = script.path; DocIndexer.shared.indexNow() }
+    }
+
+    /// The sessions folder, or a folder that holds it (Documents…) to search sessions and documents together.
+    private func chooseIndexFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.message = String(localized: "Choose the folder of your sessions, or a folder that holds it to search them with your documents.")
+        panel.directoryURL = DocIndexer.folder
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        indexFolder = url.path
+        DocIndexer.shared.indexNow()
+    }
+}
+
+/// How the last doc-indexer run went, and a button to run it now.
+private struct IndexStatusRow: View {
+    private var indexer: DocIndexer { .shared }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch indexer.state {
+            case .idle:
+                Text("Runs after the next transcript").foregroundStyle(.secondary)
+            case .waiting:
+                Label("Waits for the call or the transcript to end", systemImage: "clock").foregroundStyle(.secondary)
+            case .running:
+                ProgressView().controlSize(.small)
+                Text("Indexing…").foregroundStyle(.secondary)
+            case let .done(date, files):
+                Label(String(localized: "Indexed: \(date.formatted(date: Calendar.current.isDateInToday(date) ? .omitted : .abbreviated, time: .shortened)) · \(files) files"), systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            case let .failed(message):
+                Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Button("Index now") { indexer.indexNow() }
+                .disabled(indexer.state == .running)
+        }
+        .font(.callout)
     }
 }
 

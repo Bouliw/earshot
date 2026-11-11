@@ -255,6 +255,21 @@ final class Kyutai {
 
 // MARK: - Window
 
+/// Live subtitles on or off in one click, before or during a call. The engine stays the one chosen in Settings.
+struct SubtitlesToggle: View {
+    @AppStorage(Pref.subtitles) private var on = false
+    /// Icon only, for the menu bar popover.
+    var compact = false
+
+    var body: some View {
+        let toggle = Toggle(isOn: $on) { Label("Subtitles", systemImage: "captions.bubble") }
+            .toggleStyle(.button)
+            .buttonStyle(.glass)
+            .help(on ? "Hide the live subtitles" : "Show the last two lines said in a small window")
+        if compact { toggle.labelStyle(.iconOnly) } else { toggle }
+    }
+}
+
 /// Small translucent window with the last two lines, movable by dragging it anywhere.
 struct SubtitlesView: View {
     @Environment(AppState.self) private var state

@@ -24,13 +24,13 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 - **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript unless you ask. It works with the Mac muted.
 - **Live text.** Lines appear a moment after they are spoken, and the sentence in progress writes itself out. Scroll up and the view stays put until you jump back to live.
 - **Your voice too, if you want.** Tick "Include my microphone" and what you say is transcribed under your name. The mic is muted while the app is talking, so speaker echo is not transcribed twice.
-- **Live subtitles, if you want.** Turn them on in Settings and a small translucent window shows the last two lines said, with the speaker's name when Earshot knows it. Drag it anywhere, change the text size from the window itself. Two engines: **Fast**, Apple's on-device recognition (nothing to download, one language at a time), or **High**, Kyutai STT 1B on MLX (French and English mixed, about half a second behind, 2.4 GB downloaded only when you click Install).
+- **Live subtitles, if you want.** One click turns them on or off: **Subtitles** in the transcript window, next to Stop, or the checkbox in the menu before the call. A small translucent window shows the last two lines said, with the speaker's name when Earshot knows it. Drag it anywhere, change the text size from the window itself. Two engines: **Fast**, Apple's on-device recognition (nothing to download, one language at a time), or **High**, Kyutai STT 1B on MLX (French and English mixed, about half a second behind, 2.4 GB downloaded only when you click Install).
 - **Who said what.** In Microsoft Teams, names come from Teams' own live captions, read through the accessibility API. Earshot can turn the captions on for you.
 - **Filed by calendar event.** Each session is saved under the name of the calendar event it belongs to, then the date. Recording stops when the call ends, but not during a break before the event is over.
 - **English or French.** The interface follows the system language, or pick one in Settings. Transcription works in either language, or detects it. After the call, the language is detected for each piece of speech (one voice, up to 15 s), so a class that goes back and forth between French and English keeps each sentence in the language it was said in. Live, detection runs once per block of speech (up to 25 s): when speakers switch languages within a block, the transcript keeps the block's main language and sentences in the other one come out translated rather than word for word. The High live subtitles follow both languages as spoken.
 - **Nothing lost.** The sound is written as it comes, so a forced quit, a crash or a Mac that shuts down mid-call loses only the last fraction of a second: Earshot picks the session up at its next launch.
 - **Exports.** Every session folder holds `Transcript.txt` and `Audio.m4a`. Markdown and subtitles (.srt) export from the Library, and any session can be transcribed again from its audio.
-- **Searchable with your documents.** One plain text file per session, so a folder indexer such as [doc-indexer-macos](https://github.com/Bouliw/doc-indexer-macos) finds every class once, next to your other files. Neither app needs the other.
+- **Searchable with your documents.** Turn on "Index transcripts with doc-indexer" and Earshot runs [doc-indexer-macos](https://github.com/Bouliw/doc-indexer-macos) by itself after each transcript, so your calls and classes can be searched with your other files. It waits until no call is recorded and no transcript is being written, then runs at background priority: the Mac stays cool. Each session is one plain text file, so the indexer finds every class once.
 
 ## How it works
 
@@ -81,10 +81,13 @@ Settings › Live subtitles › High › **Install** downloads 2.4 GB after aski
 
 ### Search your classes with your documents
 
-Save sessions inside a folder you index, then search transcripts and documents together. With doc-indexer:
+1. Get [doc-indexer-macos](https://github.com/Bouliw/doc-indexer-macos) (a clone and one `swiftc` line, see its README).
+2. In Settings › Search with your documents, turn on **Index transcripts with doc-indexer**. Earshot looks for `extract_texts.py` in the usual places (`~/doc-indexer-macos`, `~/Developer`, `~/Documents/GitHub`…) and asks for it otherwise.
+3. **Folder to index** is the folder sessions are saved to. Pick a folder that holds it instead (say `~/Documents/School`, with sessions saved in `~/Documents/School/Recordings`) to search transcripts and documents together.
+
+After each transcript, once no call is being recorded, Earshot runs doc-indexer on that folder at background priority. Settings show when it last ran, and **Index now** runs it right away. The texts land in the folder's hidden `.doc-index`, where transcripts have the type `transcript` in `_manifest.tsv`:
 
 ```bash
-python3 extract_texts.py ~/Documents/School      # Earshot saves into ~/Documents/School/Recordings
 grep -ril "engagement" ~/Documents/School/.doc-index
 ```
 

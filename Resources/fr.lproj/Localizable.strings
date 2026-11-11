@@ -68,7 +68,7 @@
 "Sessions" = "Sessions";
 "Save to" = "Enregistrer dans";
 "Choose…" = "Choisir…";
-"Each session goes in a folder named after its calendar event, then the date. The transcript is a plain text file, so a folder indexer such as doc-indexer can search it with your documents." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date. La transcription est un simple fichier texte : un indexeur de dossiers comme doc-indexer peut la chercher avec vos documents.";
+"Each session goes in a folder named after its calendar event, then the date, with its transcript as a plain text file." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date, avec sa transcription en simple fichier texte.";
 "Live subtitles" = "Sous-titres en direct";
 "Show live subtitles" = "Afficher les sous-titres en direct";
 "Fast" = "Rapide";
@@ -160,3 +160,25 @@
 "Transcribe after the call instead" = "Plutôt transcrire après l'appel";
 "Stop the model now; the rest is transcribed from the audio after the call" = "Arrête le modèle maintenant ; la suite est transcrite à partir de l'audio après l'appel";
 "Words appear as they are said; the Mac works harder during the call" = "Les mots s'affichent au fil de l'eau ; le Mac travaille plus pendant l'appel";
+
+/* Search with your documents (doc-indexer) */
+"Search with your documents" = "Recherche dans vos documents";
+"Index transcripts with doc-indexer" = "Indexer les transcriptions avec doc-indexer";
+"Not found" = "Introuvable";
+"Folder to index" = "Dossier à indexer";
+"After each transcript, once no call is being recorded, Earshot runs doc-indexer on this folder at low priority, so the Mac stays cool. Your transcripts and documents can then be searched together in its hidden .doc-index folder. Nothing leaves this Mac." = "Après chaque transcription, une fois qu'aucun appel n'est enregistré, Earshot lance doc-indexer sur ce dossier en priorité basse : le Mac reste frais. Transcriptions et documents se cherchent alors ensemble dans son dossier caché .doc-index. Rien ne quitte ce Mac.";
+"Choose your doc-indexer-macos folder, or extract_texts.py in it." = "Choisissez votre dossier doc-indexer-macos, ou le fichier extract_texts.py qu'il contient.";
+"Choose the folder of your sessions, or a folder that holds it to search them with your documents." = "Choisissez le dossier de vos sessions, ou un dossier qui le contient pour les chercher avec vos documents.";
+"Runs after the next transcript" = "Se lance après la prochaine transcription";
+"Waits for the call or the transcript to end" = "Attend la fin de l'appel ou de la transcription";
+"Indexing…" = "Indexation…";
+"Indexed: %@ · %lld files" = "Indexé : %@ · %lld fichiers";
+"Index now" = "Indexer maintenant";
+"doc-indexer was not found. Choose its extract_texts.py above." = "doc-indexer est introuvable. Choisissez son extract_texts.py ci-dessus.";
+"The folder to index does not exist yet." = "Le dossier à indexer n'existe pas encore.";
+"doc-indexer stopped (code %lld)." = "doc-indexer s'est arrêté (code %lld).";
+
+/* Subtitles in one click */
+"Subtitles" = "Sous-titres";
+"Hide the live subtitles" = "Masquer les sous-titres en direct";
+"Show the last two lines said in a small window" = "Affiche les deux dernières lignes dites dans une petite fenêtre";
