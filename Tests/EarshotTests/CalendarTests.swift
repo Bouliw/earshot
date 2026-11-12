@@ -13,8 +13,10 @@ import Testing
         let call = event("Call with Sam (Tokyo)", from: -40, to: 5, details: "Message him on WhatsApp before calling")
         let meeting = event("Team weekly", from: -5, to: 55)
         #expect(CalendarLookup.pick([call, meeting], app: "com.microsoft.teams2 Microsoft Teams", now: now) == meeting)
-        // Nothing else on the calendar: no event rather than the wrong one.
-        #expect(CalendarLookup.pick([call], app: "com.microsoft.teams2 Microsoft Teams", now: now) == nil)
+        // Alone at that time, an event is taken as it is: the app only settles overlaps.
+        #expect(CalendarLookup.pick([call], app: "com.microsoft.teams2 Microsoft Teams", now: now) == call)
+        let other = event("Call with Ana", from: -20, to: 30, details: "Zoom link")
+        #expect(CalendarLookup.pick([call, other], app: "com.microsoft.teams2 Microsoft Teams", now: now) == other)
         #expect(CalendarLookup.pick([call, meeting], app: "net.whatsapp.WhatsApp WhatsApp", now: now) == call)
     }
 
@@ -62,7 +64,8 @@ import Testing
     }
 
     @Test func realRepliesStay() {
-        let talk = [line("Merci.", at: 1), line("C'est noté", mic: false, at: 2), line("Merci.", at: 3), line("Oui.", at: 4), line("Oui.", at: 5)]
+        let talk = [line("Merci.", at: 1), line("C'est noté", mic: false, at: 2), line("Merci.", at: 3)]
+            + (0..<4).map { line("Oui.", at: 4 + Double($0)) }
         #expect(StreamingTranscriber.droppingLoops(talk) == talk)
     }
 

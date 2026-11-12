@@ -237,7 +237,7 @@ final class StreamingTranscriber {
         return ["merci", "merci beaucoup", "thank you", "thanks", "thank you very much", "thank you so much", "merci à tous", "bye"].contains(t)
     }
 
-    /// Whisper looping on silence: the same short line three times or more in a row from the same speaker.
+    /// Whisper looping on silence: the same short line five times or more in a row from the same speaker.
     /// A real conversation does not do that, so the whole run goes.
     static func droppingLoops(_ segments: [Segment]) -> [Segment] {
         func key(_ s: Segment) -> String {
@@ -249,7 +249,7 @@ final class StreamingTranscriber {
             var j = i + 1
             while j < segments.count, key(segments[j]) == key(segments[i]), segments[j].speaker == segments[i].speaker, segments[j].mic == segments[i].mic { j += 1 }
             let short = key(segments[i]).split(separator: " ").count <= 4
-            if !(short && j - i >= 3) { out += segments[i..<j] }
+            if !(short && j - i >= 5) { out += segments[i..<j] }
             i = j
         }
         return out

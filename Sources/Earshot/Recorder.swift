@@ -447,17 +447,21 @@ enum CalendarLookup {
     }
 
     /// The event that best fits a recording of `app` (bundle id and name), among today's events.
-    /// An event that names another call app (a WhatsApp call while Teams records) is never taken, one that
-    /// names this app wins, and otherwise the latest to start: the event that is just ending gives way to
-    /// the one that is starting. Ticked-off to-dos are not meetings.
+    /// A single event at that time is taken as it is. Only when several overlap does the app decide: an event
+    /// that names another call app (a WhatsApp call while Teams records) gives way, one that names this app
+    /// wins, and otherwise the latest to start: the event that is just ending gives way to the one that is
+    /// starting. Ticked-off to-dos are not meetings.
     static func pick(_ events: [CalendarEvent], app: String?, now: Date = Date()) -> CalendarEvent? {
         let recording = app.flatMap { name in callApps.first { $0.app != "meet" && name.lowercased().contains($0.app) }?.app }
-        let candidates = events.filter { e in
-            guard e.start <= now.addingTimeInterval(1800), e.end >= now else { return false }
-            guard !["✅", "☑", "✔"].contains(where: { e.title.hasPrefix($0) }) else { return false }
+        let current = events.filter { e in
+            e.start <= now.addingTimeInterval(1800) && e.end >= now && !["✅", "☑", "✔"].contains(where: { e.title.hasPrefix($0) })
+        }
+        guard current.count > 1 else { return current.first }
+        let fitting = current.filter { e in
             guard let recording, let named = callApp(in: e.title + "\n" + e.details) else { return true }
             return named == recording
         }
+        let candidates = fitting.isEmpty ? current : fitting
         func score(_ e: CalendarEvent) -> Int {
             guard let recording else { return 0 }
             return callApp(in: e.title + "\n" + e.details) == recording ? 1 : 0
