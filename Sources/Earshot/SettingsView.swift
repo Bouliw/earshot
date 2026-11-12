@@ -51,6 +51,7 @@ struct SettingsView: View {
                     Text("Live").tag(TranscriptionMode.live.rawValue)
                 }
                 Toggle("Tell voices apart", isOn: $separateVoices)
+                MicPicker()
                 Picker("Spoken language", selection: $language) {
                     Text("Automatic").tag("auto")
                     Text("English").tag("en")

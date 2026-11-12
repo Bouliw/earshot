@@ -10,6 +10,7 @@ enum Pref {
     static let callsFolder = "callsFolder"   // "": the same folder as classes
     static let autoCaptions = "autoCaptions"
     static let includeMic = "includeMic"
+    static let micDevice = "micDevice"      // UID of the input to record; "": the Mac's default input
     static let subtitles = "subtitles"
     static let subtitleEngine = "subtitleEngine"  // SubtitleEngineKind
     static let subtitleSize = "subtitleSize"
@@ -93,6 +94,8 @@ final class Recorder {
     private var lastSound = Date()
     /// Recording a class from the calendar: breaks can be long and silent, so only the end of the class stops it.
     private var isClass = false
+    /// The input the microphone was opened on.
+    private var micUID: String?
     private var record: SessionRecord?
     private let subtitleSink = SubtitleSink()
     private var subtitleKind: SubtitleEngineKind?
@@ -102,7 +105,7 @@ final class Recorder {
         subtitles.speaker = { [weak self] in self?.timeline.latest }
         // The switch and the engine live in Settings (and the window's close button): follow them during a session.
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshSubtitles() }
+            Task { @MainActor in self?.refreshSubtitles(); self?.refreshMicrophone() }
         }
     }
 
@@ -155,7 +158,7 @@ final class Recorder {
                 appTrack = try RawTrack(folder.appending(path: SessionStore.appTrackName))
                 micTrack = try RawTrack(folder.appending(path: SessionStore.micTrackName))
             }
-            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = appSlot, liveMic = micSlot, mixer = mix
+            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = appSlot, mixer = mix
             tap = try AudioTap(processes: app.processes) { samples in
                 live.append(samples)
                 meter.append(samples)
@@ -169,12 +172,7 @@ final class Recorder {
                     audio?.append(samples)
                 }
             }
-            if let mixer {
-                microphone = try Microphone { samples in
-                    let heard = mixer.gateMic(samples)
-                    liveMic.append(heard)
-                }
-            }
+            if mixer != nil { try openMicrophone() }
         } catch {
             self.error = error.localizedDescription
             cleanUp()
@@ -302,6 +300,22 @@ final class Recorder {
     }
 
     /// Starts, switches or stops the subtitle engine to match the settings and the recording state.
+    /// Opens the input chosen in Settings (again, when it changes during a recording: no new session needed).
+    private func openMicrophone() throws {
+        guard let mixer else { return }
+        let liveMic = micSlot
+        let uid = UserDefaults.standard.string(forKey: Pref.micDevice) ?? ""
+        microphone?.stop()
+        microphone = nil
+        microphone = try Microphone(deviceUID: uid) { samples in liveMic.append(mixer.gateMic(samples)) }
+        micUID = uid
+    }
+
+    private func refreshMicrophone() {
+        guard state == .recording, mixer != nil, (UserDefaults.standard.string(forKey: Pref.micDevice) ?? "") != micUID else { return }
+        do { try openMicrophone() } catch { self.error = error.localizedDescription }
+    }
+
     func refreshSubtitles() {
         let defaults = UserDefaults.standard
         let kind = SubtitleEngineKind(rawValue: defaults.string(forKey: Pref.subtitleEngine) ?? "") ?? .apple

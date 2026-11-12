@@ -26,6 +26,7 @@ struct MenuView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle("Include my microphone", isOn: $includeMic)
                         .help("Also transcribe what you say, under your name.")
+                    if includeMic { MicPicker().padding(.leading, 20) }
                     Toggle("Show live subtitles", isOn: $subtitles)
                         .help("Show the last two lines said in a small window")
                 }
@@ -377,6 +378,7 @@ private struct RecordingCard: View {
                 Spacer()
                 LevelMeter(level: rec.level)
             }
+            if rec.includesMic { MicPicker() }
             // Same choice as before starting, switchable at any time without starting a new session.
             Picker("Transcribe", selection: Binding(get: { rec.mode }, set: { rec.switchMode(to: $0) })) {
                 Text("After the call").tag(TranscriptionMode.afterCall)
@@ -428,6 +430,30 @@ private struct EventChip: View {
         .font(.caption)
         .padding(.horizontal, 10).padding(.vertical, 6)
         .background(.quaternary.opacity(0.6), in: Capsule())
+    }
+}
+
+/// Which microphone to record: the Mac's default input, or one picked here. Switches at once, even mid-call.
+struct MicPicker: View {
+    @AppStorage(Pref.micDevice) private var device = ""
+    @State private var devices = InputDevice.all()
+
+    var body: some View {
+        Picker(selection: $device) {
+            Text("System default").tag("")
+            Divider()
+            ForEach(devices) { d in Text(d.name).tag(d.uid) }
+            if !device.isEmpty, !devices.contains(where: { $0.uid == device }) {
+                Text("Unplugged microphone").tag(device)
+            }
+        } label: {
+            Label("Microphone", systemImage: "mic")
+        }
+        .pickerStyle(.menu)
+        .font(.callout)
+        // Headsets come and go: the list is read again each time the menu shows up.
+        .onAppear { devices = InputDevice.all() }
+        .onHover { if $0 { devices = InputDevice.all() } }
     }
 }
 

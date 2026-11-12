@@ -185,3 +185,6 @@
 "Hide the live subtitles" = "Masquer les sous-titres en direct";
 "Show the last two lines said in a small window" = "Affiche les deux dernières lignes dites dans une petite fenêtre";
 "Reset" = "Réinitialiser";
+"Microphone" = "Micro";
+"System default" = "Celui du Mac (par défaut)";
+"Unplugged microphone" = "Micro débranché";

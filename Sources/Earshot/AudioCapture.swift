@@ -164,6 +164,45 @@ final class AudioTap {
 // MARK: - Microphone
 
 /// The default input device, for "Include my microphone".
+/// A microphone (or any sound input) the Mac can record from.
+struct InputDevice: Hashable, Identifiable {
+    let id: AudioDeviceID
+    /// Stays the same across restarts and reconnections, so it is what Settings keep.
+    let uid: String
+    let name: String
+
+    /// Every device with at least one input channel, in the order Core Audio lists them.
+    static func all() -> [InputDevice] {
+        var where_ = address(kAudioHardwarePropertyDevices)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(systemObject, &where_, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(systemObject, &where_, 0, nil, &size, &ids) == noErr else { return [] }
+        return ids.compactMap { id in
+            guard inputChannels(id) > 0, let uid = text(id, kAudioDevicePropertyDeviceUID), let name = text(id, kAudioObjectPropertyName) else { return nil }
+            return InputDevice(id: id, uid: uid, name: name)
+        }
+    }
+
+    private static func inputChannels(_ id: AudioDeviceID) -> Int {
+        var where_ = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration, mScope: kAudioObjectPropertyScopeInput, mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(id, &where_, 0, nil, &size) == noErr, size > 0 else { return 0 }
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { raw.deallocate() }
+        guard AudioObjectGetPropertyData(id, &where_, 0, nil, &size, raw) == noErr else { return 0 }
+        return UnsafeMutableAudioBufferListPointer(raw.assumingMemoryBound(to: AudioBufferList.self)).reduce(0) { $0 + Int($1.mNumberChannels) }
+    }
+
+    private static func text(_ id: AudioObjectID, _ selector: AudioObjectPropertySelector) -> String? {
+        var where_ = address(selector)
+        var value: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(id, &where_, 0, nil, &size, &value) == noErr, let value else { return nil }
+        return value.takeRetainedValue() as String
+    }
+}
+
 final class Microphone {
     private let engine = AVAudioEngine()
 
@@ -177,8 +216,13 @@ final class Microphone {
     /// How the user appears in transcripts: their macOS account name.
     static var speakerName: String { NSFullUserName().isEmpty ? String(localized: "Me") : NSFullUserName() }
 
-    init(onSamples: @escaping ([Float]) -> Void) throws {
+    /// `deviceUID`: the input chosen in Settings; "" or a device that is not plugged in: the Mac's default input.
+    init(deviceUID: String = "", onSamples: @escaping ([Float]) -> Void) throws {
         let input = engine.inputNode
+        if !deviceUID.isEmpty, let device = InputDevice.all().first(where: { $0.uid == deviceUID }), let unit = input.audioUnit {
+            var id = device.id
+            AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        }
         let format = input.outputFormat(forBus: 0)
         let resample = Resampler(from: format)
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
