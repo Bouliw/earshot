@@ -436,7 +436,7 @@ private struct EventChip: View {
 /// Which microphone to record: the Mac's default input, or one picked here. Switches at once, even mid-call.
 struct MicPicker: View {
     @AppStorage(Pref.micDevice) private var device = ""
-    @State private var devices = InputDevice.all()
+    private var devices: [InputDevice] { InputDevices.shared.list }
 
     var body: some View {
         Picker(selection: $device) {
@@ -451,9 +451,6 @@ struct MicPicker: View {
         }
         .pickerStyle(.menu)
         .font(.callout)
-        // Headsets come and go: the list is read again each time the menu shows up.
-        .onAppear { devices = InputDevice.all() }
-        .onHover { if $0 { devices = InputDevice.all() } }
     }
 }
 

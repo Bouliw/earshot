@@ -203,12 +203,39 @@ struct InputDevice: Hashable, Identifiable {
     }
 }
 
-final class Microphone {
-    private let engine = AVAudioEngine()
+/// The inputs of the Mac, kept current by Core Audio when a headset or a phone comes and goes.
+/// Read once and on change only: refreshing the list while the pointer moves over the menu rebuilt the
+/// view under SwiftUI's hit test and crashed Earshot.
+@Observable @MainActor
+final class InputDevices {
+    static let shared = InputDevices()
+    private(set) var list = InputDevice.all()
+
+    private init() {
+        var where_ = address(kAudioHardwarePropertyDevices)
+        AudioObjectAddPropertyListenerBlock(systemObject, &where_, DispatchQueue.main) { _, _ in
+            MainActor.assumeIsolated { InputDevices.shared.list = InputDevice.all() }
+        }
+    }
+}
+
+/// The user's microphone, read through AVCaptureSession: it opens exactly the input chosen in Settings
+/// (AVAudioEngine's input node keeps the Mac's default input on macOS, so a Bluetooth headset stayed
+/// in call mode with its sound degraded). Samples come out as 16 kHz mono floats.
+final class Microphone: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+    private let session = AVCaptureSession()
+    private let queue = DispatchQueue(label: "earshot.microphone", qos: .userInitiated)
+    private let onSamples: ([Float]) -> Void
 
     enum Failure: LocalizedError {
         case denied
-        var errorDescription: String? { String(localized: "Earshot cannot use the microphone. Allow it in System Settings › Privacy & Security › Microphone.") }
+        case noInput
+        var errorDescription: String? {
+            switch self {
+            case .denied: String(localized: "Earshot cannot use the microphone. Allow it in System Settings › Privacy & Security › Microphone.")
+            case .noInput: String(localized: "No microphone found.")
+            }
+        }
     }
 
     static func requestAccess() async -> Bool { await AVCaptureDevice.requestAccess(for: .audio) }
@@ -216,24 +243,39 @@ final class Microphone {
     /// How the user appears in transcripts: their macOS account name.
     static var speakerName: String { NSFullUserName().isEmpty ? String(localized: "Me") : NSFullUserName() }
 
-    /// `deviceUID`: the input chosen in Settings; "" or a device that is not plugged in: the Mac's default input.
+    /// `deviceUID`: the input chosen in Settings (a Core Audio UID, which is also the capture device's
+    /// unique ID); "" or a device that is not plugged in: the Mac's default input.
     init(deviceUID: String = "", onSamples: @escaping ([Float]) -> Void) throws {
-        let input = engine.inputNode
-        if !deviceUID.isEmpty, let device = InputDevice.all().first(where: { $0.uid == deviceUID }), let unit = input.audioUnit {
-            var id = device.id
-            AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
-        }
-        let format = input.outputFormat(forBus: 0)
-        let resample = Resampler(from: format)
-        input.installTap(onBus: 0, bufferSize: 4096, format: format) { buffer, _ in
-            if let samples = resample?(buffer) { onSamples(samples) }
-        }
-        try engine.start()
+        self.onSamples = onSamples
+        super.init()
+        let chosen = deviceUID.isEmpty ? nil : AVCaptureDevice(uniqueID: deviceUID)
+        guard let device = chosen ?? AVCaptureDevice.default(for: .audio) else { throw Failure.noInput }
+        let input = try AVCaptureDeviceInput(device: device)
+        let output = AVCaptureAudioDataOutput()
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 32, AVLinearPCMIsFloatKey: true, AVLinearPCMIsNonInterleaved: false, AVLinearPCMIsBigEndianKey: false,
+        ]
+        output.setSampleBufferDelegate(self, queue: queue)
+        session.beginConfiguration()
+        guard session.canAddInput(input), session.canAddOutput(output) else { session.commitConfiguration(); throw Failure.noInput }
+        session.addInput(input)
+        session.addOutput(output)
+        session.commitConfiguration()
+        session.startRunning()
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let block = CMSampleBufferGetDataBuffer(sampleBuffer) else { return }
+        let length = CMBlockBufferGetDataLength(block)
+        guard length >= MemoryLayout<Float>.size else { return }
+        var chunk = [Float](repeating: 0, count: length / MemoryLayout<Float>.size)
+        chunk.withUnsafeMutableBytes { _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: $0.count, destination: $0.baseAddress!) }
+        onSamples(chunk)
     }
 
     func stop() {
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        session.stopRunning()
     }
 }
 

@@ -188,3 +188,4 @@
 "Microphone" = "Micro";
 "System default" = "Celui du Mac (par défaut)";
 "Unplugged microphone" = "Micro débranché";
+"No microphone found." = "Aucun micro trouvé.";
