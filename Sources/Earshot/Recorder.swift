@@ -449,8 +449,9 @@ enum CalendarLookup {
     /// The event that best fits a recording of `app` (bundle id and name), among today's events.
     /// A single event at that time is taken as it is. Only when several overlap does the app decide: an event
     /// that names another call app (a WhatsApp call while Teams records) gives way, one that names this app
-    /// wins, and otherwise the latest to start: the event that is just ending gives way to the one that is
-    /// starting. Ticked-off to-dos are not meetings.
+    /// wins, then a class (a to-do set during a class is not what is being recorded), and otherwise the
+    /// latest to start: the event that is just ending gives way to the one that is starting.
+    /// Ticked-off to-dos are not meetings.
     static func pick(_ events: [CalendarEvent], app: String?, now: Date = Date()) -> CalendarEvent? {
         let recording = app.flatMap { name in callApps.first { $0.app != "meet" && name.lowercased().contains($0.app) }?.app }
         let current = events.filter { e in
@@ -466,7 +467,7 @@ enum CalendarLookup {
             guard let recording else { return 0 }
             return callApp(in: e.title + "\n" + e.details) == recording ? 1 : 0
         }
-        return candidates.max { a, b in (score(a), a.start) < (score(b), b.start) }
+        return candidates.max { a, b in (score(a), a.isClass ? 1 : 0, a.start) < (score(b), b.isClass ? 1 : 0, b.start) }
     }
 
     /// Classes are filed by school: "GEM : Course - Session 3". A call ("Nordine (Datadog) : call") is not.

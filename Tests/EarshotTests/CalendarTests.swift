@@ -28,6 +28,15 @@ import Testing
         #expect(CalendarLookup.pick([linked, starting], app: "com.microsoft.teams2 Microsoft Teams", now: now) == linked)
     }
 
+    @Test func aClassWinsOverAToDoSetDuringIt() {
+        let lecture = event("GEM : Real world content marketing - Social Media support", from: -50, to: 40)
+        let todo = event("Auto · Bluesky : repost A1-03", from: -2, to: 28, details: "Repost button, 2 sec")
+        #expect(CalendarLookup.pick([lecture, todo], app: "com.microsoft.teams2 Microsoft Teams", now: now) == lecture)
+        // A call named for its app still wins over the class it falls in.
+        let call = event("Call with Sam", from: -5, to: 25, details: "Microsoft Teams meeting link")
+        #expect(CalendarLookup.pick([lecture, todo, call], app: "com.microsoft.teams2 Microsoft Teams", now: now) == call)
+    }
+
     @Test func doneToDosAndFinishedEventsAreNotMeetings() {
         let todo = event("✅ Tutor: choices sent", from: -10, to: 20)
         let past = event("Breakfast", from: -60, to: -1)
