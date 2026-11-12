@@ -89,4 +89,13 @@ import Testing
             #expect(SessionStore.newFolder(base: base, group: "Marketing / Stratégie").lastPathComponent == "\(day) 3")
         }
     }
+
+    @Test func classesAndCallsShowTogetherEachOnce() throws {
+        try withTempFolder { base in
+            let classes = base.appending(path: "Classes"), calls = classes.appending(path: "Calls")
+            try save(sampleRecord(), in: classes, group: "Course")
+            try save(sampleRecord(), in: calls, group: "Call with Sam")
+            #expect(SessionStore.loadAll(bases: [classes, calls]).count == 2)
+        }
+    }
 }

@@ -58,6 +58,9 @@ import Testing
         defaults.set("/tmp/Calls", forKey: Pref.callsFolder)
         #expect(Pref.base(forClass: false, defaults: defaults).path == "/tmp/Calls")
         #expect(Pref.base(forClass: true, defaults: defaults).path == "/tmp/Classes")
+        #expect(Pref.sessionFolders(defaults: defaults).map(\.path) == ["/tmp/Classes", "/tmp/Calls"])
+        defaults.set("/tmp/Classes", forKey: Pref.callsFolder)
+        #expect(Pref.sessionFolders(defaults: defaults).map(\.path) == ["/tmp/Classes"])
     }
 }
 

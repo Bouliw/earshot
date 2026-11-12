@@ -123,7 +123,7 @@ final class AppState {
 
     func reloadLibrary() {
         guard !demo else { return }
-        library = SessionStore.loadAll(base: base)
+        library = SessionStore.loadAll(bases: Pref.sessionFolders())
     }
 
     /// Imported audio or video files: each gets a session in "Imported files", transcribed like a recording.

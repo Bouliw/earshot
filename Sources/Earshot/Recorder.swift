@@ -20,6 +20,12 @@ enum Pref {
     static let indexFolder = "indexFolder"    // "": the folder sessions are saved to
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
 
+    /// Every folder sessions are saved to: the "Save to" folder, and the calls folder when it is another one.
+    static func sessionFolders(defaults: UserDefaults = .standard) -> [URL] {
+        let classes = base(forClass: true, defaults: defaults), calls = base(forClass: false, defaults: defaults)
+        return classes.standardizedFileURL == calls.standardizedFileURL ? [classes] : [classes, calls]
+    }
+
     /// Where a session goes: classes in the "Save to" folder, calls in the calls folder when one is set.
     static func base(forClass isClass: Bool, defaults: UserDefaults = .standard) -> URL {
         let classes = defaults.string(forKey: folder) ?? defaultFolder
@@ -532,6 +538,14 @@ enum SessionStore {
         try? encoder.encode(r).write(to: folder.appending(path: recordName), options: .atomic)
         // One text file per session, so a folder indexer finds each class once; Markdown and subtitles are exports.
         try? text(r).write(to: folder.appending(path: "Transcript.txt"), atomically: true, encoding: .utf8)
+    }
+
+    /// Sessions of several folders, each once even when one folder holds another.
+    static func loadAll(bases: [URL]) -> [SessionRecord] {
+        var seen = Set<String>()
+        return bases.flatMap { loadAll(base: $0) }
+            .filter { seen.insert($0.folder?.standardizedFileURL.path ?? $0.id.uuidString).inserted }
+            .sorted { $0.startedAt > $1.startedAt }
     }
 
     static func loadAll(base: URL) -> [SessionRecord] {
