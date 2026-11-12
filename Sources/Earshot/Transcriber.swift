@@ -97,7 +97,9 @@ final class Whisper {
         return (0..<whisper_full_n_segments(ctx)).compactMap { i in
             let text = String(cString: whisper_full_get_segment_text(ctx, i)).trimmingCharacters(in: .whitespaces)
             // A chime or a click can come out as "Thank you."; Whisper itself rates those as probably not speech.
-            guard !text.isEmpty, whisper_full_get_segment_no_speech_prob(ctx, i) < 0.6 else { return nil }
+            // "Merci." / "Thank you." are also what Whisper writes over breathing and room noise: they need more proof.
+            let limit: Float = StreamingTranscriber.isStock(text) ? 0.2 : 0.6
+            guard !text.isEmpty, whisper_full_get_segment_no_speech_prob(ctx, i) < limit else { return nil }
             return (Double(whisper_full_get_segment_t0(ctx, i)) / 100, Double(whisper_full_get_segment_t1(ctx, i)) / 100, text)
         }
     }
@@ -228,6 +230,30 @@ final class StreamingTranscriber {
     }
 
     private func rmsOf(_ s: [Float]) -> Float { s.isEmpty ? 0 : sqrt(s.reduce(0) { $0 + $1 * $1 } / Float(s.count)) }
+
+    /// Short thanks and goodbyes Whisper is known to write over near-silence.
+    static func isStock(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)).lowercased()
+        return ["merci", "merci beaucoup", "thank you", "thanks", "thank you very much", "thank you so much", "merci à tous", "bye"].contains(t)
+    }
+
+    /// Whisper looping on silence: the same short line three times or more in a row from the same speaker.
+    /// A real conversation does not do that, so the whole run goes.
+    static func droppingLoops(_ segments: [Segment]) -> [Segment] {
+        func key(_ s: Segment) -> String {
+            s.text.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)).lowercased()
+        }
+        var out: [Segment] = []
+        var i = 0
+        while i < segments.count {
+            var j = i + 1
+            while j < segments.count, key(segments[j]) == key(segments[i]), segments[j].speaker == segments[i].speaker, segments[j].mic == segments[i].mic { j += 1 }
+            let short = key(segments[i]).split(separator: " ").count <= 4
+            if !(short && j - i >= 3) { out += segments[i..<j] }
+            i = j
+        }
+        return out
+    }
 
     static func isNoise(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)).lowercased()

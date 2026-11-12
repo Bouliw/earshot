@@ -68,7 +68,9 @@
 "Sessions" = "Sessions";
 "Save to" = "Enregistrer dans";
 "Choose…" = "Choisir…";
-"Each session goes in a folder named after its calendar event, then the date, with its transcript as a plain text file." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date, avec sa transcription en simple fichier texte.";
+"Each session goes in a folder named after its calendar event, then the date, with its transcript as a plain text file. Classes (calendar events like \"SCHOOL : Course\") go in the first folder, calls in the second." = "Chaque session va dans un dossier au nom de son événement d'agenda, puis de la date, avec sa transcription en simple fichier texte. Les cours (événements du type « ÉCOLE : Cours ») vont dans le premier dossier, les appels dans le second.";
+"Calls" = "Appels";
+"Same folder" = "Même dossier";
 "Live subtitles" = "Sous-titres en direct";
 "Show live subtitles" = "Afficher les sous-titres en direct";
 "Fast" = "Rapide";
@@ -182,3 +184,4 @@
 "Subtitles" = "Sous-titres";
 "Hide the live subtitles" = "Masquer les sous-titres en direct";
 "Show the last two lines said in a small window" = "Affiche les deux dernières lignes dites dans une petite fenêtre";
+"Reset" = "Réinitialiser";

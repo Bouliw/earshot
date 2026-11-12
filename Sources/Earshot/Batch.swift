@@ -200,7 +200,7 @@ enum BatchTranscriber {
                 segments[i].speaker = timeline.speaker(from: segments[i].start, to: segments[i].end)
             }
         }
-        return segments
+        return StreamingTranscriber.droppingLoops(segments)
     }
 
     /// Voices for a session transcribed live: the lines stay, only who said them changes.

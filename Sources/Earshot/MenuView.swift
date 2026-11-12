@@ -42,7 +42,7 @@ struct MenuView: View {
         .frame(width: 340)
         .task {
             // Refresh while the popover is open; `.task` stops when it closes.
-            if !state.demo { state.event = await CalendarLookup.currentEvent() }
+            if !state.demo { state.event = await CalendarLookup.currentEvent().map { ($0.title, $0.end) } }
             while !Task.isCancelled {
                 if !state.demo { state.apps = AudioApp.all() }
                 try? await Task.sleep(for: .seconds(1))
@@ -434,9 +434,10 @@ private struct EventChip: View {
 struct PulsingDot: View {
     @ViewState private var on = false
     var body: some View {
+        // The repeating animation only drives the opacity: applied to the whole view, it also replayed the dot's
+        // first layout forever, and the dot kept sliding in from the left.
         Circle().fill(.red).frame(width: 7, height: 7)
-            .opacity(on ? 1 : 0.35)
-            .animation(.easeInOut(duration: 0.9).repeatForever(), value: on)
+            .animation(.easeInOut(duration: 0.9).repeatForever()) { $0.opacity(on ? 1 : 0.35) }
             .onAppear { on = true }
     }
 }

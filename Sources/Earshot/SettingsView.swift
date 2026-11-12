@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("interfaceLanguage") private var interfaceLanguage = "system"
     @AppStorage(Pref.model) private var model = ""
     @AppStorage(Pref.folder) private var folder = Pref.defaultFolder
+    @AppStorage(Pref.callsFolder) private var callsFolder = ""
     @AppStorage(Pref.autoCaptions) private var autoCaptions = true
     @AppStorage(Pref.subtitles) private var subtitles = false
     @AppStorage(Pref.subtitleSize) private var subtitleSize = 24.0
@@ -83,10 +84,18 @@ struct SettingsView: View {
                         Button("Choose…", action: choose)
                     }
                 }
+                LabeledContent("Calls") {
+                    HStack {
+                        Text(callsFolder.isEmpty ? String(localized: "Same folder") : (callsFolder as NSString).abbreviatingWithTildeInPath)
+                            .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
+                        if !callsFolder.isEmpty { Button("Reset") { callsFolder = "" } }
+                        Button("Choose…", action: chooseCalls)
+                    }
+                }
             } header: {
                 Text("Sessions")
             } footer: {
-                Text("Each session goes in a folder named after its calendar event, then the date, with its transcript as a plain text file.").foregroundStyle(.secondary)
+                Text("Each session goes in a folder named after its calendar event, then the date, with its transcript as a plain text file. Classes (calendar events like \"SCHOOL : Course\") go in the first folder, calls in the second.").foregroundStyle(.secondary)
             }
             Section {
                 Toggle("Index transcripts with doc-indexer", isOn: $indexTranscripts)
@@ -155,6 +164,15 @@ struct SettingsView: View {
         panel.canCreateDirectories = true
         panel.directoryURL = URL(filePath: folder)
         if panel.runModal() == .OK, let url = panel.url { folder = url.path }
+    }
+
+    private func chooseCalls() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = URL(filePath: callsFolder.isEmpty ? folder : callsFolder)
+        if panel.runModal() == .OK, let url = panel.url { callsFolder = url.path }
     }
 
     /// doc-indexer's folder or its extract_texts.py.

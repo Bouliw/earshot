@@ -21,6 +21,10 @@ import Testing
         let three = turns + [VoiceTurn(start: 25, end: 30, voice: "S3")]
         #expect(Voices.names(for: three, marks: marks) == ["S1": "Speaker 1", "S2": "Bob Smith", "S3": "Speaker 2"])
         #expect(Voices.names(for: turns, marks: []) == ["S1": "Speaker 1", "S2": "Speaker 2"])
+        // One voice besides the user's microphone: the other side still gets a name to rename.
+        let alone = [VoiceTurn(start: 0, end: 5, voice: "S1")]
+        #expect(Voices.names(for: alone, marks: []) == [:])
+        #expect(Voices.names(for: alone, marks: [], withUser: true) == ["S1": "Speaker 1"])
     }
 
     @Test func aSingleVoiceWithoutANameStaysUnnamed() {

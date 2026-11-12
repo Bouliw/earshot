@@ -68,8 +68,9 @@ enum Voices {
 
     /// A name for each voice. A voice takes the Teams name heard over most of its turns (several voices can
     /// end up with the same person, when one person was split in two); the others are "Speaker 1", "Speaker 2"...
-    /// in the order they first speak. A single voice with no name gets none: there is nobody to tell apart.
-    static func names(for turns: [VoiceTurn], marks: [NameMark]) -> [String: String] {
+    /// in the order they first speak. A single voice with no name gets none, unless the user's microphone was
+    /// recorded apart (`withUser`): the other side is then "Speaker 1", to rename like any other.
+    static func names(for turns: [VoiceTurn], marks: [NameMark], withUser: Bool = false) -> [String: String] {
         var order: [String] = []
         for t in turns where !order.contains(t.voice) { order.append(t.voice) }
         var votes: [String: [String: Int]] = [:]
@@ -86,7 +87,7 @@ enum Voices {
             }
         }
         let unnamed = order.filter { names[$0] == nil }
-        guard order.count > 1 else { return names }
+        guard order.count > 1 || withUser else { return names }
         for (i, voice) in unnamed.enumerated() { names[voice] = String(localized: "Speaker \(i + 1)") }
         return names
     }
@@ -94,7 +95,7 @@ enum Voices {
     /// Gives each line (outside the user's microphone) the name of the voice that said it.
     static func label(_ segments: [Segment], turns: [VoiceTurn], marks: [NameMark]) -> [Segment] {
         guard !turns.isEmpty else { return segments }
-        let names = names(for: turns, marks: marks)
+        let names = names(for: turns, marks: marks, withUser: segments.contains { $0.mic == true })
         return segments.map { s in
             guard s.mic != true, let voice = voice(from: s.start, to: s.end, in: turns) else { return s }
             var s = s

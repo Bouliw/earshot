@@ -7,6 +7,7 @@ enum Pref {
     static let language = "language"        // "auto", "en", "fr"
     static let model = "modelPath"
     static let folder = "saveFolder"
+    static let callsFolder = "callsFolder"   // "": the same folder as classes
     static let autoCaptions = "autoCaptions"
     static let includeMic = "includeMic"
     static let subtitles = "subtitles"
@@ -18,6 +19,13 @@ enum Pref {
     static let indexer = "docIndexerScript"   // path to doc-indexer's extract_texts.py ("": found by itself)
     static let indexFolder = "indexFolder"    // "": the folder sessions are saved to
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
+
+    /// Where a session goes: classes in the "Save to" folder, calls in the calls folder when one is set.
+    static func base(forClass isClass: Bool, defaults: UserDefaults = .standard) -> URL {
+        let classes = defaults.string(forKey: folder) ?? defaultFolder
+        guard !isClass, let calls = defaults.string(forKey: callsFolder), !calls.isEmpty else { return URL(filePath: classes) }
+        return URL(filePath: calls)
+    }
 }
 
 /// When the words are written: once the call is over (only the sound is saved meanwhile, no model runs),
@@ -77,6 +85,8 @@ final class Recorder {
     private var micTrack: RawTrack?
     private var watchdog: Timer?
     private var lastSound = Date()
+    /// Recording a class from the calendar: breaks can be long and silent, so only the end of the class stops it.
+    private var isClass = false
     private var record: SessionRecord?
     private let subtitleSink = SubtitleSink()
     private var subtitleKind: SubtitleEngineKind?
@@ -102,16 +112,17 @@ final class Recorder {
             return
         }
         error = nil
-        let event = await CalendarLookup.currentEvent()
-        let base = URL(filePath: defaults.string(forKey: Pref.folder) ?? Pref.defaultFolder)
-        let group = event.map { CalendarLookup.courseName($0.title) } ?? app.name
-        let folder = SessionStore.newFolder(base: base, group: group)
+        let event = await CalendarLookup.currentEvent(for: app)
+        let isClass = event?.isClass ?? false
+        let group = event.map { isClass ? CalendarLookup.courseName($0.title) : $0.title } ?? app.name
+        let folder = SessionStore.newFolder(base: Pref.base(forClass: isClass, defaults: defaults), group: group)
 
         let mode = TranscriptionMode.current
         self.mode = mode
         self.app = app
         title = event?.title ?? String(localized: "\(app.name) call")
         eventEnd = event?.end
+        self.isClass = isClass
         startedAt = Date()
         segments = []
         preview = ""
@@ -341,15 +352,16 @@ final class Recorder {
         }
     }
 
-    /// Stops when the app quits, or when it has been silent for a while once the calendar event is over.
-    /// Teams keeps its audio running for the whole call, so a class break does not count as silence.
+    /// Stops when the app quits, or when it has been silent for a while: for a class, once its calendar event
+    /// is over (Teams keeps its audio running for the whole call, so a break does not count as silence);
+    /// for a call, as soon as the app goes quiet, which is when the other side hangs up.
     private func check() {
         guard state == .recording, let app else { return }
         guard let fresh = app.refreshed() else { stop(); return }
         if fresh.processes != self.app?.processes { tap?.update(processes: fresh.processes); self.app = fresh }
         if fresh.isPlaying { lastSound = Date() }
         let quiet = Date().timeIntervalSince(lastSound)
-        if let end = eventEnd { if Date() > end && quiet > 120 { stop() } } else if quiet > 180 { stop() }
+        if isClass, let end = eventEnd { if Date() > end && quiet > 120 { stop() } } else if quiet > 120 { stop() }
         if captions == nil, needsAccessibility, TeamsCaptions.isTrusted { startCaptions(pid: app.pid) }
         // No new lines come in after the call: keep the duration and the names on disk anyway.
         if state == .recording, mode == .afterCall { save() }
@@ -385,21 +397,77 @@ final class Recorder {
 
 // MARK: - Calendar
 
+/// The calendar event a recording belongs to.
+struct CalendarEvent: Equatable {
+    var title: String
+    var start: Date
+    var end: Date
+    /// Location, link and notes: where a meeting link or the name of the call app usually is.
+    var details: String = ""
+    var isClass: Bool { CalendarLookup.isClass(title) }
+}
+
 enum CalendarLookup {
     private static let store = EKEventStore()
 
-    /// The event happening now (or starting within 30 min). `end` is the end of that event's last slot today,
-    /// so a class split around a lunch break still counts as one session.
-    static func currentEvent() async -> (title: String, end: Date)? {
+    /// The event being recorded (happening now, or starting within 30 min). For a class, `end` is the end of
+    /// its last slot today, so a class split around a lunch break still counts as one session.
+    static func currentEvent(for app: AudioApp? = nil) async -> CalendarEvent? {
         if CommandLine.arguments.contains("--no-calendar") { return nil }
         guard (try? await store.requestFullAccessToEvents()) == true else { return nil }
         let now = Date()
         let dayStart = Calendar.current.startOfDay(for: now)
-        let events = store.events(matching: store.predicateForEvents(withStart: dayStart, end: dayStart.addingTimeInterval(86_400), calendars: nil))
+        let all = store.events(matching: store.predicateForEvents(withStart: dayStart, end: dayStart.addingTimeInterval(86_400), calendars: nil))
             .filter { !$0.isAllDay }
-        guard let current = events.first(where: { $0.startDate <= now.addingTimeInterval(1800) && $0.endDate >= now }) else { return nil }
-        let end = events.filter { $0.title == current.title }.map(\.endDate).max() ?? current.endDate!
-        return (current.title, end)
+            .map { e in
+                CalendarEvent(title: e.title ?? "", start: e.startDate, end: e.endDate,
+                              details: [e.location, e.url?.absoluteString, e.notes].compactMap { $0 }.joined(separator: "\n"))
+            }
+        guard var event = pick(all, app: app.map { "\($0.bundleID) \($0.name)" }, now: now) else { return nil }
+        if event.isClass { event.end = all.filter { $0.title == event.title }.map(\.end).max() ?? event.end }
+        return event
+    }
+
+    /// Call apps, by what names them in an event (its text) and in the app being recorded (its bundle id or name).
+    private static let callApps: [(app: String, words: [String])] = [
+        ("teams", ["teams", "teams.microsoft.com", "teams.live.com"]),
+        ("whatsapp", ["whatsapp"]),
+        ("zoom", ["zoom", "zoom.us"]),
+        ("facetime", ["facetime"]),
+        ("discord", ["discord"]),
+        ("slack", ["slack"]),
+        ("webex", ["webex"]),
+        ("meet", ["meet.google.com", "google meet"]),
+    ]
+
+    /// Which call app a text names (or an app is): the first match, or nil.
+    static func callApp(in text: String) -> String? {
+        let t = text.lowercased()
+        return callApps.first { entry in entry.words.contains { t.contains($0) } }?.app
+    }
+
+    /// The event that best fits a recording of `app` (bundle id and name), among today's events.
+    /// An event that names another call app (a WhatsApp call while Teams records) is never taken, one that
+    /// names this app wins, and otherwise the latest to start: the event that is just ending gives way to
+    /// the one that is starting. Ticked-off to-dos are not meetings.
+    static func pick(_ events: [CalendarEvent], app: String?, now: Date = Date()) -> CalendarEvent? {
+        let recording = app.flatMap { name in callApps.first { $0.app != "meet" && name.lowercased().contains($0.app) }?.app }
+        let candidates = events.filter { e in
+            guard e.start <= now.addingTimeInterval(1800), e.end >= now else { return false }
+            guard !["✅", "☑", "✔"].contains(where: { e.title.hasPrefix($0) }) else { return false }
+            guard let recording, let named = callApp(in: e.title + "\n" + e.details) else { return true }
+            return named == recording
+        }
+        func score(_ e: CalendarEvent) -> Int {
+            guard let recording else { return 0 }
+            return callApp(in: e.title + "\n" + e.details) == recording ? 1 : 0
+        }
+        return candidates.max { a, b in (score(a), a.start) < (score(b), b.start) }
+    }
+
+    /// Classes are filed by school: "GEM : Course - Session 3". A call ("Nordine (Datadog) : call") is not.
+    static func isClass(_ title: String) -> Bool {
+        title.firstMatch(of: #/^[A-Z][A-Z0-9]{1,9} : /#) != nil
     }
 
     /// "SCHOOL : Course name - Session 3" -> "Course name"
