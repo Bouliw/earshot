@@ -79,6 +79,43 @@ jobs:
           $p = Start-Process -FilePath out/Earshot/Earshot.exe -ArgumentList $arguments -Wait -PassThru
           if (Test-Path check.txt) { Get-Content check.txt }
           if ($p.ExitCode -ne 0) { throw "Earshot --check failed with exit code $($p.ExitCode)" }
+      - name: Open the window
+        # The window and its styles load, nothing is reported as an error, and a screenshot is kept to look at.
+        run: |
+          $session = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "Earshot\Calls\Weekly sync\2026-11-13"
+          New-Item -ItemType Directory -Force $session | Out-Null
+          @'
+          {
+            "appName": "Windows", "bundleID": "windows.system-audio", "duration": 1260, "id": "0F8E7C4A-5B2D-4E61-9A3F-2C7D1B8E6A10",
+            "segments": [
+              { "end": 6, "id": "A1B2C3D4-0000-4000-8000-000000000001", "speaker": "Speaker 1", "start": 0, "text": "Morning everyone, shall we start with the roadmap?" },
+              { "end": 12, "id": "A1B2C3D4-0000-4000-8000-000000000002", "mic": true, "speaker": "Me", "start": 7, "text": "Sure. The beta goes out on Monday, the release notes are almost done." },
+              { "end": 20, "id": "A1B2C3D4-0000-4000-8000-000000000003", "speaker": "Speaker 2", "start": 13, "text": "Parfait, je relis les notes cet après-midi et je te fais un retour." }
+            ],
+            "startedAt": "2026-11-13T09:00:00Z", "title": "Weekly sync"
+          }
+          '@ | Set-Content -Encoding utf8 (Join-Path $session ".earshot.json")
+          $p = Start-Process -FilePath out/Earshot/Earshot.exe -PassThru
+          Start-Sleep -Seconds 12
+          $p.Refresh()
+          $log = Join-Path $env:LOCALAPPDATA "Earshot\errors.log"
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bitmap = New-Object System.Drawing.Bitmap $screen.Width, $screen.Height
+          [System.Drawing.Graphics]::FromImage($bitmap).CopyFromScreen($screen.Location, [System.Drawing.Point]::Empty, $screen.Size)
+          $bitmap.Save("window-${{ matrix.arch }}.png")
+          $title = $p.MainWindowTitle
+          $alive = -not $p.HasExited
+          if ($alive) { Stop-Process -Id $p.Id -Force }
+          if (Test-Path $log) { Get-Content $log; throw "Earshot reported an error" }
+          if (-not $alive) { throw "Earshot quit on its own (exit code $($p.ExitCode))" }
+          if ($title -ne "Earshot") { throw "Unexpected main window title: '$title'" }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: window-${{ matrix.arch }}
+          path: window-${{ matrix.arch }}.png
+          if-no-files-found: ignore
       - name: Zip
         run: Compress-Archive -Path out/Earshot -DestinationPath Earshot-Windows-${{ matrix.arch }}.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2

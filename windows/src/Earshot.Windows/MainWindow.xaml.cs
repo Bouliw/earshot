@@ -142,7 +142,8 @@ public partial class MainWindow : Window
             .Select(r => new SessionItem { Record = r, Status = StatusOf(r) }).ToList();
         SessionList.ItemsSource = items;
         EmptyText.Text = items.Count == 0 ? L.NoSessions : L.NoSelection;
-        var match = items.FirstOrDefault(i => SameFolder(i.Record.Folder, folder));
+        // Nothing chosen yet: the newest session is shown.
+        var match = folder == null ? items.FirstOrDefault() : items.FirstOrDefault(i => SameFolder(i.Record.Folder, folder));
         if (match != null) SessionList.SelectedItem = match;
         else Show(null);
     }
