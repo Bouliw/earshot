@@ -77,7 +77,9 @@ public sealed class BatchTranscriber
         progress(0.1);
         var maxLength = input.Language == "auto" ? 15.0 : 25.0;
         var pieces = turns.Count == 0 ? Voiced(input.Samples, maxLength) : Chunker.Pieces(turns, input.Samples, maxLength);
-        float[]? mic = input.Mic is { Length: > 0 } m ? MicGate.Apply(input.Samples, m) : null;
+        // The microphone is never muted: the PC's sound is taken out of it, so the user's words stay even when they
+        // speak over the other side.
+        float[]? mic = input.Mic is { Length: > 0 } m ? EchoCanceller.Clean(m, input.Samples) : null;
         var micPieces = mic != null ? Voiced(mic, maxLength, 0.004f) : new List<Piece>();
         var total = Math.Max(1, pieces.Concat(micPieces).Sum(p => p.Length));
         var done = 0.0;
@@ -113,7 +115,7 @@ public sealed class BatchTranscriber
                 progress(0.1 + 0.9 * done / total);
             }
         }
-        segments = segments.OrderBy(s => s.Start).ToList();
+        segments = EchoLines.Dropping(segments.OrderBy(s => s.Start).ToList());
         if (turns.Count > 0) segments = Voices.Label(segments, turns, input.Marks);
         // Voices not told apart (turned off, or the models could not load): the other side is one speaker.
         foreach (var s in segments.Where(s => s.Mic != true && s.Speaker == null)) s.Speaker = L.Speaker(1);

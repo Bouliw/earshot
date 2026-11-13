@@ -47,24 +47,3 @@ public static class TranscriptRules
         return output;
     }
 }
-
-/// <summary>Keeps the far side's voice out of the microphone track: while the PC plays someone talking, laptop speakers
-/// feed it back into the microphone, and it would be transcribed twice. The microphone is muted over those moments
-/// (plus a short tail for the room's echo), as the Mac app does.</summary>
-public static class MicGate
-{
-    public static float[] Apply(float[] app, float[] mic, float level = 0.01f, double tail = 0.25)
-    {
-        const int window = Chunker.Rate / 20;  // 50 ms
-        var output = (float[])mic.Clone();
-        var hold = (int)(tail * Chunker.Rate);
-        var mutedUntil = -1;
-        for (var i = 0; i < mic.Length; i += window)
-        {
-            var end = Math.Min(i + window, mic.Length);
-            if (i < app.Length && Chunker.Rms(app, i, Math.Min(end, app.Length)) > level) mutedUntil = end + hold;
-            if (i < mutedUntil) Array.Clear(output, i, Math.Min(end, mutedUntil) - i);
-        }
-        return output;
-    }
-}

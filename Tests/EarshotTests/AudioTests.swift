@@ -3,18 +3,34 @@ import Testing
 @testable import Earshot
 
 @Suite struct AudioTests {
-    @Test func theMicrophoneJoinsTheSavedAudioAndNeverLagsByMoreThanASecond() {
+    @Test func theMicrophoneGoesOnTheAppsClockAndNeverLagsByMoreThanASecond() {
         let mix = MicMix()
-        _ = mix.gateMic([Float](repeating: 0.1, count: 20_000))
-        let saved = mix.mixApp([Float](repeating: 0, count: 20_000))
-        #expect(saved.prefix(16_000).allSatisfy { abs($0 - 0.1) < 1e-6 })
-        #expect(saved.suffix(4_000).allSatisfy { $0 == 0 })
+        mix.addMic([Float](repeating: 0.1, count: 20_000))
+        let (_, mic, _) = mix.split([Float](repeating: 0, count: 20_000))
+        #expect(mic.prefix(16_000).allSatisfy { abs($0 - 0.1) < 1e-6 })
+        #expect(mic.suffix(4_000).allSatisfy { $0 == 0 })
     }
 
-    @Test func quietNoiseFromTheAppDoesNotMuteTheMicrophone() {
+    /// It used to be muted whenever the app made a sound, and the user's words were lost each time they spoke over
+    /// the other side. Now it is kept whole on its own track, and with nothing of the app in it, cleaning it changes
+    /// nothing that matters; it goes into the saved audio too.
+    @Test func theMicrophoneIsNeverMutedWhileTheAppTalks() {
+        let app = EchoTests.voice(seconds: 2, seed: 1, pitch: 700)
+        let voice = EchoTests.voice(seconds: 2, seed: 2, pitch: 1_400)
         let mix = MicMix()
-        _ = mix.mixApp([Float](repeating: 0.005, count: 160))
-        #expect(mix.gateMic([0.2, 0.2]) == [0.2, 0.2])
+        var saved: [Float] = [], mic: [Float] = [], cleaned: [Float] = []
+        for at in stride(from: 0, to: app.count, by: 400) {  // 25 ms buffers, as they come
+            mix.addMic(Array(voice[at..<(at + 400)]))
+            let out = mix.split(Array(app[at..<(at + 400)]))
+            saved += out.mix; mic += out.mic; cleaned += out.cleaned
+        }
+        #expect(Array(mic[MicMix.cushion...]) == Array(voice[..<(voice.count - MicMix.cushion)]))
+        let n = cleaned.count
+        #expect(n >= mic.count - LiveEchoCanceller.latency)
+        let kept = zip(cleaned, mic.prefix(n)).map { ($0 - $1) * ($0 - $1) }.reduce(0, +)
+        #expect(10 * log10(mic.prefix(n).map { $0 * $0 }.reduce(0, +) / kept) > 15)
+        let shift = LiveEchoCanceller.latency
+        #expect(zip(saved[shift...], app[shift...]).contains { abs($0 - $1) > 0.01 })
     }
 
     @Test func samplesRoundTripThroughABuffer() throws {

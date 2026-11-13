@@ -279,37 +279,42 @@ final class Microphone: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, 
     }
 }
 
-/// Puts the microphone into the saved audio, and mutes it while the app is talking, so speaker echo
-/// is not transcribed a second time under the user's name. With headphones the gate never triggers.
+/// Puts the microphone on the app's clock, for its own track and the saved audio. The microphone is never muted:
+/// with speakers it also hears the app, so the app's sound is taken out of it (`LiveEchoCanceller`), and the user's
+/// words stay even when they speak over the other side. With headphones there is nothing to take out.
 final class MicMix {
+    /// The microphone starts 100 ms behind: its buffers come in bigger chunks than the app's, and running dry would
+    /// shift it against the app's sound (and the echo with it).
+    static let cushion = 1_600
     private let lock = NSLock()
-    private var pending: [Float] = []
-    private var appTalkingUntil = Date.distantPast
-    var speechLevel: Float = 0.004
+    private var pending = [Float](repeating: 0, count: cushion)
+    private let echo = LiveEchoCanceller()
+    private var cleaned = [Float](repeating: 0, count: LiveEchoCanceller.latency)
 
-    /// App audio in, app + microphone out (for the saved file).
-    func mixApp(_ samples: [Float]) -> [Float] { split(samples).mix }
-
-    /// App audio in: app + microphone, and the microphone alone on the app's clock (for its own track).
-    func split(_ samples: [Float]) -> (mix: [Float], mic: [Float]) {
-        let loud = samples.contains { abs($0) > speechLevel * 2 }
+    /// Microphone in, from its own thread.
+    func addMic(_ samples: [Float]) {
         lock.lock(); defer { lock.unlock() }
-        if loud { appTalkingUntil = Date().addingTimeInterval(0.5) }
-        var out = samples
-        var mic = [Float](repeating: 0, count: samples.count)
-        let n = min(out.count, pending.count)
-        for i in 0..<n { out[i] += pending[i]; mic[i] = pending[i] }
-        pending.removeFirst(n)
-        return (out, mic)
+        pending += samples
+        if pending.count > 16_000 { pending.removeFirst(pending.count - 16_000) }  // keep the two clocks within 1 s
     }
 
-    /// Microphone in, what the transcriber should hear out (silence while the app talks).
-    func gateMic(_ samples: [Float]) -> [Float] {
-        lock.lock(); defer { lock.unlock() }
-        let out = Date() < appTalkingUntil ? [Float](repeating: 0, count: samples.count) : samples
-        pending += out
-        if pending.count > 16_000 { pending.removeFirst(pending.count - 16_000) }  // keep the two clocks within 1 s
-        return out
+    /// App audio in, from the app's thread: app + cleaned microphone (for the saved file), the microphone as recorded
+    /// on the app's clock (for its own track, cleaned again once the call is over), and the cleaned microphone so far
+    /// (for the live transcriber).
+    func split(_ samples: [Float]) -> (mix: [Float], mic: [Float], cleaned: [Float]) {
+        var mic = [Float](repeating: 0, count: samples.count)
+        lock.lock()
+        let n = min(samples.count, pending.count)
+        for i in 0..<n { mic[i] = pending[i] }
+        pending.removeFirst(n)
+        lock.unlock()
+        let clean = echo.process(reference: samples, mic: mic)
+        cleaned += clean
+        var out = samples
+        let m = min(out.count, cleaned.count)
+        for i in 0..<m { out[i] += cleaned[i] }
+        cleaned.removeFirst(m)
+        return (out, mic, clean)
     }
 }
 

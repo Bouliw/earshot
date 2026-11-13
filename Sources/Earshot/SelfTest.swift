@@ -26,12 +26,14 @@ enum SelfTest {
         precondition(Voices.voice(from: 8, to: 14, in: voices) == "S2")
         let turns = Turn.group([Segment(start: 0, end: 2, speaker: "A", text: "Hi."), Segment(start: 2, end: 4, speaker: "A", text: "Yes."), Segment(start: 4, end: 5, speaker: "B", text: "Ok.")])
         precondition(turns.count == 2 && turns[0].text == "Hi. Yes.")
-        let talking = MicMix()
-        _ = talking.mixApp([Float](repeating: 0.1, count: 160))
-        precondition(talking.gateMic([0.2, 0.2]) == [0, 0])        // app talking: mic muted (echo)
-        let quiet = MicMix()
-        precondition(quiet.gateMic([0.2, 0.2]) == [0.2, 0.2])
-        precondition(quiet.mixApp([0, 0, 0]) == [0.2, 0.2, 0])    // mic lands in the saved audio
+        let both = MicMix()
+        both.addMic([Float](repeating: 0.2, count: 3_200))
+        let (_, heard, _) = both.split([Float](repeating: 0.1, count: 3_200))  // app talking: the mic is kept
+        precondition(heard.prefix(MicMix.cushion).allSatisfy { $0 == 0 } && heard.suffix(1_600).allSatisfy { $0 == 0.2 })
+        precondition(EchoCanceller.clean(mic: [0.2, 0.1, 0.3], reference: [0.1, 0.1, 0.1]) == [0.2, 0.1, 0.3])  // no echo: as recorded
+        let said = Segment(start: 0, end: 2, speaker: "A", text: "On commence lundi.")
+        let cut = Segment(start: 1, end: 2, speaker: "Me", text: "Attends !", mic: true)
+        precondition(EchoLines.dropping([said, Segment(start: 0.1, end: 2, speaker: "Me", text: "on commence lundi", mic: true), cut]) == [said, cut])
         MainActor.assumeIsolated {
             var who: String? = "A"
             let feed = SubtitleFeed()

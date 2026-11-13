@@ -159,16 +159,17 @@ final class Recorder {
                 appTrack = try RawTrack(folder.appending(path: SessionStore.appTrackName))
                 micTrack = try RawTrack(folder.appending(path: SessionStore.micTrackName))
             }
-            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = appSlot, mixer = mix
+            let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = appSlot, liveMic = micSlot, mixer = mix
             tap = try AudioTap(processes: app.processes) { samples in
                 live.append(samples)
                 meter.append(samples)
                 sink.append(samples)
                 appOnly?.append(samples)
                 if let mixer {
-                    let (mixed, mic) = mixer.split(samples)
+                    let (mixed, mic, cleaned) = mixer.split(samples)
                     audio?.append(mixed)
                     micOnly?.append(mic)
+                    liveMic.append(cleaned)
                 } else {
                     audio?.append(samples)
                 }
@@ -249,6 +250,8 @@ final class Recorder {
     private func finish() {
         captions?.stop()
         attributeSpeakers(since: 0)
+        // Live, a line of echo can slip through before the canceller has learned the room.
+        segments = EchoLines.dropping(segments)
         for track in [audioTrack, appTrack, micTrack] { track?.close() }
         audioTrack = nil
         appTrack = nil
@@ -306,11 +309,10 @@ final class Recorder {
     /// Opens the input chosen in Settings (again, when it changes during a recording: no new session needed).
     private func openMicrophone() throws {
         guard let mixer else { return }
-        let liveMic = micSlot
         let uid = UserDefaults.standard.string(forKey: Pref.micDevice) ?? ""
         microphone?.stop()
         microphone = nil
-        microphone = try Microphone(deviceUID: uid) { samples in liveMic.append(mixer.gateMic(samples)) }
+        microphone = try Microphone(deviceUID: uid) { samples in mixer.addMic(samples) }
         micUID = uid
     }
 

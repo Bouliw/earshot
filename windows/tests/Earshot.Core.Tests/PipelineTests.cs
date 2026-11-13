@@ -171,15 +171,4 @@ public sealed class PipelineTests
         Assert.False(TranscriptRules.Keep(new RecognizedLine(0, 1, "Bye.", 0.1f), clip));
         Assert.True(TranscriptRules.Keep(new RecognizedLine(1, 2, "Bye.", 0.1f), clip));
     }
-
-    [Fact]
-    public void TheMicrophoneIsMutedWhileThePcTalks()
-    {
-        var app = Join(Silence(1), Tone(1), Silence(2));
-        var mic = Tone(4, 0.05f);
-        var gated = MicGate.Apply(app, mic);
-        Assert.True(Chunker.Rms(gated, 0, Rate) > 0.01);
-        Assert.Equal(0, Chunker.Rms(gated, (int)(1.1 * Rate), (int)(2.2 * Rate)));
-        Assert.True(Chunker.Rms(gated, (int)(2.5 * Rate), 4 * Rate) > 0.01);
-    }
 }

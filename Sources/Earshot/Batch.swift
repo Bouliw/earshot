@@ -164,10 +164,12 @@ enum BatchTranscriber {
         let pieces = turns.isEmpty
             ? await Chunker.voiced(input.samples, maxLength: maxLength)
             : Chunker.pieces(turns: turns, samples: input.samples, maxLength: maxLength)
-        // The microphone hears the user's breathing, typing and room noise between their sentences: only the
-        // stretches where the voice model hears someone go to Whisper.
+        // The microphone is never muted: the app's sound is taken out of it, so the user's words stay even when they
+        // speak over the other side. It also hears their breathing, typing and room noise between their sentences:
+        // only the stretches where the voice model hears someone go to Whisper.
+        let micTrack = input.mic.map { EchoCanceller.clean(mic: $0, reference: input.samples) }
         var micPieces: [Chunker.Piece] = []
-        if let mic = input.mic { micPieces = await Chunker.voiced(mic, maxLength: maxLength, level: 0.004) }
+        if let micTrack { micPieces = await Chunker.voiced(micTrack, maxLength: maxLength, level: 0.004) }
         let total = max(1, (pieces + micPieces).reduce(0) { $0 + $1.end - $1.start })
         var done = 0.0
 
@@ -176,7 +178,7 @@ enum BatchTranscriber {
         }
         var segments: [Segment] = []
         var lastLanguage: [String: String] = [:]
-        for (list, samples, mic) in [(pieces, input.samples, false), (micPieces, input.mic ?? [], true)] {
+        for (list, samples, mic) in [(pieces, input.samples, false), (micPieces, micTrack ?? [], true)] {
             for piece in list {
                 try Task.checkCancellation()
                 await input.pause()
@@ -208,6 +210,7 @@ enum BatchTranscriber {
             }
         }
         segments.sort { $0.start < $1.start }
+        segments = EchoLines.dropping(segments)
         if !turns.isEmpty {
             segments = Voices.label(segments, turns: turns, marks: input.marks)
         } else if !input.marks.isEmpty {
