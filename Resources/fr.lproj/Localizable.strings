@@ -189,3 +189,17 @@
 "System default" = "Celui du Mac (par défaut)";
 "Unplugged microphone" = "Micro débranché";
 "No microphone found." = "Aucun micro trouvé.";
+
+/* Summary */
+"Summary" = "Résumé";
+"Summarize" = "Résumer";
+"Summarize again" = "Résumer à nouveau";
+"Summarizing" = "Résumé en cours";
+"Summarizing…" = "Résumé en cours…";
+"Summarizing · %@" = "Résumé · %@";
+"Summarizing · %lld waiting" = "Résumé · %lld en attente";
+"Summary (.txt)" = "Résumé (.txt)";
+"Summarize each call automatically" = "Résumer chaque appel automatiquement";
+"Write the summary of this session again: key points, decisions and who does what" = "Réécrire le résumé de cette session : points clés, décisions et qui fait quoi";
+"Once the transcript is written, Apple's on-device model writes a short summary in the language of the call: what it was about, the key points, the decisions and who does what. It goes in Summary.txt next to the transcript and shows above it. Nothing leaves the Mac." = "Une fois la transcription écrite, le modèle d'Apple intégré au Mac rédige un court résumé dans la langue de l'appel : le sujet, les points clés, les décisions et qui fait quoi. Il est enregistré dans Summary.txt à côté de la transcription et s'affiche au-dessus. Rien ne quitte le Mac.";
+"Summaries need Apple Intelligence, turned on in System Settings." = "Les résumés demandent Apple Intelligence, à activer dans Réglages Système.";

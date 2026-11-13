@@ -14,7 +14,11 @@ struct TranscriptWindow: View {
             }
             if let error = rec.error { Banner(icon: "exclamationmark.triangle.fill", text: Text(error)) }
             let work = rec.isActive ? nil : state.queue.status(of: rec.folder)
-            if let work, work.kind == .voices || !rec.segments.isEmpty {
+            if let work, work.kind == .summary, !work.waiting {
+                Banner(icon: "sparkles", text: Text("Summarizing…")) {
+                    ProgressView(value: work.progress).frame(width: 80)
+                }
+            } else if let work, work.kind == .voices || !rec.segments.isEmpty {
                 Banner(icon: "person.2.wave.2", text: Text(work.kind == .voices ? "Telling voices apart…" : "Transcribing again…")) {
                     ProgressView(value: work.progress).frame(width: 80)
                 }
@@ -45,6 +49,7 @@ struct TranscriptWindow: View {
                     .padding(.bottom, rec.isActive ? 48 : 0)
                 }
             } else {
+                if rec.state == .idle { SummaryCard(folder: rec.folder) }
                 TranscriptList(segments: rec.segments, startedAt: rec.startedAt, query: query,
                                live: rec.state == .recording ? (rec.previewSpeaker, rec.preview) : nil,
                                onRename: rec.state == .idle && work == nil ? { old in if let new = AppState.askName(for: old) { rec.rename(old, to: new); state.reloadLibrary() } } : nil)

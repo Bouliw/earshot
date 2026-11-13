@@ -71,6 +71,7 @@ enum SelfTest {
         let args = CommandLine.arguments
         if args.contains("--check") { checks(); exit(0) }
         if let i = args.firstIndex(of: "--after"), i + 1 < args.count { after(args[i + 1], model: i + 2 < args.count ? args[i + 2] : "") }
+        if let i = args.firstIndex(of: "--summarize"), i + 1 < args.count { summarize(args[i + 1]) }
         if let i = args.firstIndex(of: "--subtitles"), i + 1 < args.count {
             subtitles(samples(args[i + 1]), kind: SubtitleEngineKind(rawValue: i + 2 < args.count ? args[i + 2] : "") ?? .apple)
         }
@@ -98,6 +99,26 @@ enum SelfTest {
         print("lines: \(lines), live previews: \(previews), audio \(samples.count / 16_000)s in \(Int(Date().timeIntervalSince(began)))s")
         assert(lines > 0, "speech should produce at least one line")
         exit(0)
+    }
+
+    /// `--summarize <session folder>`: prints the summary Earshot would write for that session, without saving it.
+    private static func summarize(_ path: String) -> Never {
+        setvbuf(stdout, nil, _IOLBF, 0)
+        guard let record = SessionStore.load(URL(filePath: path)) else { print("no session in \(path)"); exit(1) }
+        print("model available: \(CallSummarizer.isAvailable), \(Summary.wordCount(record.segments)) words, language \(Summary.language(of: record.segments))")
+        Task {
+            let began = Date()
+            do {
+                let text = try await CallSummarizer.summarize(record) { _ in }
+                print(text ?? "(too short to summarize)")
+                print(String(format: "took %.1f s", Date().timeIntervalSince(began)))
+                exit(text == nil ? 1 : 0)
+            } catch {
+                print("error: \(error.localizedDescription)")
+                exit(1)
+            }
+        }
+        dispatchMain()
     }
 
     private static func after(_ path: String, model: String) -> Never {

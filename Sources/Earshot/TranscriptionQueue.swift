@@ -10,6 +10,8 @@ final class TranscriptionQueue {
         case transcribe
         /// Only who said each line, for a session already transcribed live.
         case voices
+        /// Only Summary.txt, for a session that already has its transcript.
+        case summary
     }
 
     struct Job: Identifiable, Equatable {
@@ -25,6 +27,8 @@ final class TranscriptionQueue {
     private(set) var progress: Double = 0
     /// True while the work waits for a recording to end.
     private(set) var paused = false
+    /// True while the running job writes its summary (after a transcript, or on its own).
+    private(set) var summarizing = false
     /// Whether to hold the work for now: during a recording, nothing heavy runs (the point of "After the call").
     var hold: () -> Bool = { false }
     var onFinished: (URL) -> Void = { _ in }
@@ -41,7 +45,11 @@ final class TranscriptionQueue {
     /// Whether a session waits or is being worked on, and how far along: nil when nothing is queued for it.
     func status(of folder: URL?) -> (waiting: Bool, kind: Kind, progress: Double)? {
         guard let folder, let i = jobs.firstIndex(where: { Self.same($0.folder, folder) }) else { return nil }
-        return (i > 0, jobs[i].kind, i == 0 ? progress : 0)
+        return (i > 0, i == 0 && summarizing ? .summary : jobs[i].kind, i == 0 ? progress : 0)
+    }
+
+    /// What the running job is doing now: its own kind, or `.summary` once its transcript is done.
+    var currentKind: Kind? { current.map { summarizing ? .summary : $0.kind }
     }
 
     static func same(_ a: URL, _ b: URL) -> Bool { a.standardizedFileURL.resolvingSymlinksInPath().path == b.standardizedFileURL.resolvingSymlinksInPath().path }
@@ -79,6 +87,8 @@ final class TranscriptionQueue {
             let folder = job.folder
             try await Task.detached { try SessionStore.finalizeAudio(in: folder) }.value
             switch job.kind {
+            case .summary:
+                break
             case .voices:
                 guard defaults.object(forKey: Pref.separateVoices) as? Bool ?? true else { break }
                 await waitWhileHeld()
@@ -110,11 +120,20 @@ final class TranscriptionQueue {
                 record.segments = try await BatchTranscriber.run(input, progress: report)
                 notify(record)
             }
-            record.status = nil
-            record.failure = nil
-            // The separate tracks only served to tell the user's voice from the call's.
-            try? FileManager.default.removeItem(at: appTrack)
-            try? FileManager.default.removeItem(at: micTrack)
+            if job.kind != .summary {
+                record.status = nil
+                record.failure = nil
+                // The separate tracks only served to tell the user's voice from the call's.
+                try? FileManager.default.removeItem(at: appTrack)
+                try? FileManager.default.removeItem(at: micTrack)
+                SessionStore.write(record, to: job.folder)
+                onFinished(job.folder)  // the transcript shows now, while its summary is written
+            }
+            // Asked for (Summarize again) or on by default after each transcript.
+            if job.kind == .summary || defaults.object(forKey: Pref.summarize) as? Bool ?? true {
+                await summarize(record, in: job.folder)
+            }
+            return
         } catch {
             // Telling voices apart is a bonus: when it fails, the live transcript stays as it was.
             if job.kind == .transcribe {
@@ -123,6 +142,25 @@ final class TranscriptionQueue {
             }
         }
         SessionStore.write(record, to: job.folder)
+    }
+
+    /// Summary.txt with Apple's on-device model. A failure leaves the transcript as it is: the summary is a bonus.
+    private func summarize(_ record: SessionRecord, in folder: URL) async {
+        guard CallSummarizer.isAvailable, !record.segments.isEmpty else { return }
+        await waitWhileHeld()
+        summarizing = true
+        progress = 0
+        defer { summarizing = false }
+        let report: @Sendable (Double) -> Void = { [weak self] value in Task { @MainActor in self?.progress = max(self?.progress ?? 0, value) } }
+        do {
+            if let text = try await CallSummarizer.summarize(record, progress: report) {
+                try text.write(to: Summary.url(in: folder), atomically: true, encoding: .utf8)
+            } else {
+                try? FileManager.default.removeItem(at: Summary.url(in: folder))  // too short now: an old summary would be wrong
+            }
+        } catch {
+            // Kept as it was: an older summary stays rather than none.
+        }
     }
 
     private func notify(_ record: SessionRecord) {

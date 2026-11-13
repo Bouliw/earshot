@@ -150,6 +150,12 @@ final class AppState {
         queue.add(folder, kind: .transcribe, title: record.title)
     }
 
+    /// Writes the summary of a saved session again (Summary.txt), with Apple's on-device model.
+    func summarize(_ record: SessionRecord) {
+        guard let folder = record.folder else { return }
+        queue.add(folder, kind: .summary, title: record.title)
+    }
+
     /// Renames a speaker in a saved session, and in the transcript window if it shows that session.
     func rename(_ old: String?, to new: String, in record: SessionRecord) {
         guard let folder = record.folder, var saved = SessionStore.load(folder) else { return }

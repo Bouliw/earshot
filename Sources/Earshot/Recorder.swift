@@ -16,6 +16,7 @@ enum Pref {
     static let subtitleSize = "subtitleSize"
     static let mode = "transcriptionMode"   // TranscriptionMode
     static let separateVoices = "separateVoices"
+    static let summarize = "summarizeCalls"     // Summary.txt after each transcript (on unless turned off)
     static let indexTranscripts = "indexTranscripts"
     static let indexer = "docIndexerScript"   // path to doc-indexer's extract_texts.py ("": found by itself)
     static let indexFolder = "indexFolder"    // "": the folder sessions are saved to
@@ -269,6 +270,8 @@ final class Recorder {
                 onQueued(folder, .transcribe, record.title)
             } else if voices, segments.contains(where: { $0.mic != true }) {
                 onQueued(folder, .voices, record.title)
+            } else if UserDefaults.standard.object(forKey: Pref.summarize) as? Bool ?? true, !segments.isEmpty {
+                onQueued(folder, .summary, record.title)
             }
             onFinished(record)
         }

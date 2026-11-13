@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage(Pref.subtitleSize) private var subtitleSize = 24.0
     @AppStorage(Pref.mode) private var mode = TranscriptionMode.afterCall.rawValue
     @AppStorage(Pref.separateVoices) private var separateVoices = true
+    @AppStorage(Pref.summarize) private var summarize = true
     @AppStorage(Pref.indexTranscripts) private var indexTranscripts = false
     @AppStorage(Pref.indexer) private var indexer = ""
     @AppStorage(Pref.indexFolder) private var indexFolder = ""
@@ -65,6 +66,21 @@ struct SettingsView: View {
                 Text("Transcription")
             } footer: {
                 Text("After the call, only the sound is saved while you talk: the Mac stays cool, and the transcript that follows gives each sentence its own language. Voices are told apart on this Mac once the call ends (about 40 MB downloaded the first time); Teams names are used when Earshot can see them, “Speaker 1”, “Speaker 2”… otherwise. Click a name in a transcript to rename it.").foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle("Summarize each call automatically", isOn: $summarize)
+                    .disabled(!CallSummarizer.isAvailable)
+            } header: {
+                Text("Summary")
+            } footer: {
+                Group {
+                    if CallSummarizer.isAvailable {
+                        Text("Once the transcript is written, Apple's on-device model writes a short summary in the language of the call: what it was about, the key points, the decisions and who does what. It goes in Summary.txt next to the transcript and shows above it. Nothing leaves the Mac.")
+                    } else {
+                        Text("Summaries need Apple Intelligence, turned on in System Settings.")
+                    }
+                }
+                .foregroundStyle(.secondary)
             }
             Section {
                 Toggle("Show live subtitles", isOn: $subtitles)

@@ -322,10 +322,10 @@ private struct QueueCard: View {
 
     var body: some View {
         let queue = state.queue
-        if let job = queue.current {
+        if let job = queue.current, let kind = queue.currentKind {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
-                    Image(systemName: job.kind == .voices ? "person.2.wave.2" : "text.word.spacing")
+                    Image(systemName: kind == .voices ? "person.2.wave.2" : kind == .summary ? "sparkles" : "text.word.spacing")
                         .foregroundStyle(.tint)
                     Text(job.title).font(.callout.weight(.medium)).lineLimit(1)
                     Spacer(minLength: 4)
@@ -337,9 +337,17 @@ private struct QueueCard: View {
                     if queue.paused {
                         Text("Waits for the recording to end, so nothing heavy runs meanwhile")
                     } else if queue.jobs.count > 1 {
-                        Text(job.kind == .voices ? "Telling voices apart · \(queue.jobs.count - 1) waiting" : "Transcribing · \(queue.jobs.count - 1) waiting")
+                        switch kind {
+                        case .voices: Text("Telling voices apart · \(queue.jobs.count - 1) waiting")
+                        case .summary: Text("Summarizing · \(queue.jobs.count - 1) waiting")
+                        case .transcribe: Text("Transcribing · \(queue.jobs.count - 1) waiting")
+                        }
                     } else {
-                        Text(job.kind == .voices ? "Telling voices apart" : "Transcribing")
+                        switch kind {
+                        case .voices: Text("Telling voices apart")
+                        case .summary: Text("Summarizing")
+                        case .transcribe: Text("Transcribing")
+                        }
                     }
                 }
                 .font(.caption).foregroundStyle(.secondary)

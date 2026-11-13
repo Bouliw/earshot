@@ -86,7 +86,11 @@ private struct SessionRow: View {
                         if work.waiting { Text("Waiting to be transcribed") }
                         else {
                             let percent = work.progress.formatted(.percent.precision(.fractionLength(0)))
-                            Text(work.kind == .voices ? "Telling voices apart · \(percent)" : "Transcribing · \(percent)")
+                            switch work.kind {
+                            case .voices: Text("Telling voices apart · \(percent)")
+                            case .summary: Text("Summarizing · \(percent)")
+                            case .transcribe: Text("Transcribing · \(percent)")
+                            }
                         }
                     } else if record.status == .failed {
                         Text("Could not be transcribed").foregroundStyle(.orange)
@@ -122,7 +126,11 @@ private struct SessionDetail: View {
             .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 10)
             Divider()
             let work = state.queue.status(of: record.folder)
-            if let work, work.kind == .voices || !record.segments.isEmpty {
+            if let work, work.kind == .summary, !work.waiting {
+                Banner(icon: "sparkles", text: Text("Summarizing…")) {
+                    ProgressView(value: work.progress).frame(width: 80)
+                }
+            } else if let work, work.kind == .voices || !record.segments.isEmpty {
                 Banner(icon: "person.2.wave.2", text: Text(work.kind == .voices ? "Telling voices apart…" : (work.waiting ? "Waiting to be transcribed again" : "Transcribing again…"))) {
                     ProgressView(value: work.progress).frame(width: 80)
                 }
@@ -140,6 +148,7 @@ private struct SessionDetail: View {
             } else if record.status == .pending && record.segments.isEmpty {
                 TranscribingView(waiting: true, progress: 0)
             } else {
+                SummaryCard(folder: record.folder)
                 TranscriptList(segments: record.segments, startedAt: record.startedAt, query: query,
                                onRename: work == nil ? { old in if let new = AppState.askName(for: old) { state.rename(old, to: new, in: record) } } : nil)
             }
@@ -159,6 +168,13 @@ private struct SessionDetail: View {
                     .help("Rename a speaker in this session")
                     .disabled(state.queue.status(of: record.folder) != nil)
                 }
+                if CallSummarizer.isAvailable {
+                    Button { state.summarize(record) } label: {
+                        Label(Summary.load(record.folder) == nil ? "Summarize" : "Summarize again", systemImage: "sparkles")
+                    }
+                    .help("Write the summary of this session again: key points, decisions and who does what")
+                    .disabled(record.segments.isEmpty || state.queue.status(of: record.folder) != nil)
+                }
                 Button { state.retranscribe(record) } label: { Label("Transcribe again", systemImage: "arrow.clockwise") }
                     .help("Transcribe again from the audio: each voice told apart, each sentence in its own language")
                     .disabled(!hasAudio || state.queue.status(of: record.folder) != nil)
@@ -166,6 +182,9 @@ private struct SessionDetail: View {
                     Button("Text (.txt)") { export("txt", .plainText, text: SessionStore.text(record)) }
                     Button("Markdown (.md)") { export("md", UTType(filenameExtension: "md") ?? .plainText, text: SessionStore.markdown(record)) }
                     Button("Subtitles (.srt)") { export("srt", UTType(filenameExtension: "srt") ?? .plainText, text: SessionStore.srt(record)) }
+                    if let summary = Summary.load(record.folder) {
+                        Button("Summary (.txt)") { export("txt", .plainText, text: summary) }
+                    }
                     Divider()
                     Button("Audio (.m4a)") { export("m4a", .mpeg4Audio) }
                 } label: {
