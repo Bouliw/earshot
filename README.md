@@ -21,6 +21,7 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 - **One click.** The menu bar lists the apps playing sound right now. Click one to start.
 - **After the call, or live.** By default only the sound is saved during the call: no model runs, so the Mac stays cool, and the transcript is written once the call ends. Transcripts waiting for their turn also hold off while another recording runs. Switch to **Live** in the menu to watch the text appear as it is said, before or during a call: switching mid-call keeps one session, and whatever was not transcribed live is written from the audio at the end.
 - **Each voice told apart.** Once the call ends, Earshot works out who spoke when, on the Neural Engine. Lines get the Teams names when it can see them, "Speaker 1", "Speaker 2"… otherwise. Click a name to rename that speaker everywhere in the session; give two the same name to merge them.
+- **A summary after each call.** Once the transcript is written, Apple's on-device model (Apple Intelligence) writes a short summary in the language of the call: what it was about, the key points, the decisions and who does what. It shows above the transcript and is saved as `Summary.txt` next to it. **Summarize again** rewrites it; turn it off in Settings. A long class is read in blocks, then the notes are merged.
 - **Files too.** "Transcribe a file…" (or a drop on the Library) takes any audio or video file macOS can open: a voice memo, a meeting recorded elsewhere. Each one is transcribed like a call, voices included.
 - **Only that app.** Earshot taps the app's own audio output, so notifications, music or your own mic never end up in the transcript unless you ask. It works with the Mac muted.
 - **Live text.** Lines appear a moment after they are spoken, and the sentence in progress writes itself out. Scroll up and the view stays put until you jump back to live.
@@ -41,6 +42,7 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 | Transcription | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with Metal. Audio is cut at pauses, silence is skipped so Whisper does not hallucinate. After the call, Silero's voice activity model (Core ML, through FluidAudio) keeps only the stretches where someone speaks, so breathing, typing and room noise on the microphone do not turn into made-up lines. Each piece is one voice and gets its own language |
 | Voices | [FluidAudio](https://github.com/FluidInference/FluidAudio)'s offline speaker diarization (pyannote segmentation and speaker embeddings in Core ML, on the Neural Engine). Each voice takes the Teams name heard most over its turns |
 | Speaker names | Teams' "Live Captions" panel, read through `AXUIElement`, kept with the session so the voices can be named after the call |
+| Summary | Apple's Foundation Models framework (the on-device model behind Apple Intelligence) |
 | Calendar | EventKit |
 | Live subtitles | Fast: Apple's `SpeechAnalyzer`. High: [Kyutai STT 1B en_fr](https://huggingface.co/kyutai/stt-1b-en_fr-mlx) with MLX, run by a small Python script in its own environment |
 
@@ -128,14 +130,15 @@ A separate app in the same repository (`windows/`, C# and .NET 8), with the Mac'
 ### Requirements
 
 - Windows 10 (1809 or later) or Windows 11, 64-bit, on x64 or Arm64. Nothing else to install: .NET and the Visual C++ runtime are in the zip.
-- About 2 GB of disk for the default Whisper model (large-v3-turbo, 1.6 GB) and the voice models. Everything runs on the CPU: on a slower or Arm PC, a lighter model in Settings (Large v3 Turbo compact, Small, Base) gives the transcript sooner.
+- About 2 GB of disk for the default Whisper model (large-v3-turbo, 1.6 GB, and the voice models) and 2.5 GB for the default summary model; 8 GB of memory is enough for both. Everything runs on the CPU: on a slower or Arm PC, a lighter Whisper model (Large v3 Turbo compact, Small, Base) and a smaller summary model in Settings give the results sooner.
 
 ### How it works
 
 - **Two tracks.** The PC's sound (whatever plays on the default output: Teams, Zoom, a browser…) is captured through WASAPI loopback, and the chosen microphone apart, both written to disk as they come. A session cut short (Earshot closed, PC shut down) is transcribed at the next launch.
 - **Only where someone speaks.** Silero's voice activity model keeps the stretches with a voice on each track, so breathing, typing and room noise never reach Whisper. Whisper ([whisper.cpp](https://github.com/ggml-org/whisper.cpp) through [Whisper.net](https://github.com/sandrohanea/whisper.net)) detects the language of each piece, as on the Mac.
 - **Each voice told apart.** On the PC's track, [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (pyannote segmentation and speaker embeddings) separates the voices: "Speaker 1", "Speaker 2"… Click a name to rename that speaker everywhere in the session; give two the same name to merge them. The microphone track is always you ("Me" by default, set in Settings), and is muted while the PC plays sound, so what comes out of laptop speakers is not transcribed twice.
-- **Files.** `Documents\Earshot\Calls\<title>\<date>\` holds `Audio.m4a` (AAC; `Audio.wav` on Windows editions without the AAC encoder), `Transcript.txt` and `.earshot.json`, as on the Mac.
+- **A summary after each call.** Once the transcript is written, a language model on the PC ([Qwen3](https://huggingface.co/Qwen), run by llama.cpp through [LLamaSharp](https://github.com/SciSharp/LLamaSharp)) writes a short summary in the language of the call: what it was about, the key points, the decisions and who does what. It shows above the transcript and is saved as `Summary.txt`. Settings turn it off or pick the model: **Small** (1.8 GB), **Medium** (2.5 GB, the default), **Large** (5 GB) or **Extra large** (9 GB). A bigger model writes better summaries but takes longer and needs more memory; it is downloaded the first time it is used.
+- **Files.** `Documents\Earshot\Calls\<title>\<date>\` holds `Audio.m4a` (AAC; `Audio.wav` on Windows editions without the AAC encoder), `Transcript.txt`, `Summary.txt` and `.earshot.json`, as on the Mac.
 - **Models.** Downloaded the first time they are needed, with progress in the window, into `%LOCALAPPDATA%\Earshot\Models`; each file is checked against its expected size.
 - **Out of the way.** Closing the window keeps Earshot in the notification area (start or stop a recording from its icon, right-click to quit). The interface follows the language of Windows, English or French.
 
