@@ -542,6 +542,118 @@ enum EchoLines {
     }
 }
 
+/// The microphone while the other side talks. What it hears then is either the user (cutting in, a quick "yes") or the
+/// call itself: a faint copy through headphones, or what the echo canceller leaves. Whisper turns that copy into lines
+/// nobody said, close to the other side's words but not close enough for `EchoLines`. Two signs give it away: it is much
+/// quieter than the user's own voice, and its loudness follows the call's, syllable by syllable, a moment later. A
+/// stretch heard over the call is kept unless it shows one of them: the user cutting in speaks at their usual level,
+/// with a rhythm of their own.
+enum EchoLeak {
+    static let frame = 320                          // 20 ms
+    private static let latest = 60, earliest = -2   // heard up to 1.2 s after the app plays it (Bluetooth), or 40 ms before
+    /// A stretch whose loudest second stays under this share of the user's usual level is the call (about -9 dB).
+    static let quietShare: Float = 0.35
+    /// A stretch whose loudness follows the call's at least this closely (correlation) is the call.
+    static let followShare: Float = 0.6
+
+    /// The pieces of the microphone (`mic`, on the app's clock) worth transcribing, given the app's track.
+    static func keeping(_ pieces: [Chunker.Piece], mic: [Float], reference: [Float]) -> [Chunker.Piece] {
+        guard !pieces.isEmpty, !mic.isEmpty, !reference.isEmpty else { return pieces }
+        let m = envelope(mic), r = envelope(reference)
+        let sounding = r.filter { $0 > 1e-4 }.sorted()
+        guard !sounding.isEmpty else { return pieces }
+        let talking = sounding[sounding.count * 9 / 10] / 10  // within 20 dB of the call's loud moments
+        // Whether the microphone may be hearing the call at each 20 ms: it talked in the last 1.2 s.
+        var heard = [Bool](repeating: false, count: m.count)
+        var lastOn = Int.min / 2
+        for i in 0..<m.count {
+            if i < r.count, r[i] > talking { lastOn = i }
+            heard[i] = i - lastOn <= latest
+        }
+        func frames(_ p: Chunker.Piece) -> Range<Int> {
+            let a = max(0, Int(p.start * Chunker.rate) / frame), b = min(m.count, Int(p.end * Chunker.rate) / frame)
+            return a..<max(a, b)
+        }
+        func overCall(_ p: Chunker.Piece) -> Bool {
+            let f = frames(p)
+            guard !f.isEmpty else { return false }
+            return f.filter { heard[$0] }.count * 10 >= f.count * 3
+        }
+        // The user's usual level: the loudest second of what the microphone heard while the call was quiet.
+        let alone = pieces.filter { !overCall($0) }.map { loudest(m, frames($0)) }.sorted()
+        let usual: Float? = alone.count >= 3 ? alone[alone.count / 2] : nil
+        // How late the microphone hears the call, over the whole recording; each piece is then only checked around it.
+        let lag = delay(m, r, talking: talking)
+        let lags = max(earliest, lag - 5)...min(latest, lag + 5)
+        return pieces.filter { p in
+            guard overCall(p) else { return true }
+            let f = frames(p)
+            if let usual, loudest(m, f) < usual * quietShare { return false }
+            return follows(m, r, f, talking: talking, lags: lags) < followShare
+        }
+    }
+
+    /// The delay (in 20 ms) at which the microphone's loudness follows the call's best, over the whole recording.
+    static func delay(_ m: [Float], _ r: [Float], talking: Float) -> Int {
+        var best = 0, bestScore: Float = -2
+        for lag in earliest...latest {
+            let score = follows(m, r, 0..<m.count, talking: talking, lags: lag...lag)
+            if score > bestScore { bestScore = score; best = lag }
+        }
+        return best
+    }
+
+    /// Loudness of each 20 ms.
+    static func envelope(_ s: [Float]) -> [Float] {
+        stride(from: 0, to: s.count, by: frame).map { Chunker.rms(s[$0..<min($0 + frame, s.count)]) }
+    }
+
+    /// The loudest second of `f` (all of it when shorter).
+    static func loudest(_ e: [Float], _ f: Range<Int>) -> Float {
+        guard !f.isEmpty else { return 0 }
+        let n = min(50, f.count)
+        var sum: Float = 0, best: Float = 0
+        for i in f {
+            sum += e[i] * e[i]
+            if i - n >= f.lowerBound { sum -= e[i - n] * e[i - n] }
+            if i - f.lowerBound + 1 >= n { best = max(best, sum) }
+        }
+        return sqrt(max(best, 0) / Float(n))
+    }
+
+    /// How closely the loudness of `f` follows the call's at the best of `lags` (in 20 ms), from -1 to 1, counted only
+    /// where the call is talking (a reply that starts as the other side stops does not count) and over half a second at
+    /// least (a shorter overlap tells nothing: 0).
+    static func follows(_ m: [Float], _ r: [Float], _ f: Range<Int>, talking: Float, lags: ClosedRange<Int>) -> Float {
+        var best: Float = 0
+        var x: [Float] = [], y: [Float] = []
+        x.reserveCapacity(f.count); y.reserveCapacity(f.count)
+        for lag in lags {
+            x.removeAll(keepingCapacity: true); y.removeAll(keepingCapacity: true)
+            for i in f {
+                let j = i - lag
+                guard j >= 0, j < r.count, r[j] > talking else { continue }
+                x.append(log10(m[i] + 1e-4)); y.append(log10(r[j] + 1e-4))
+            }
+            guard x.count >= 25 else { continue }  // half a second at least
+            best = max(best, correlation(x, y))
+        }
+        return best
+    }
+
+    static func correlation(_ x: [Float], _ y: [Float]) -> Float {
+        let n = Float(x.count)
+        let mx = x.reduce(0, +) / n, my = y.reduce(0, +) / n
+        var sxy: Float = 0, sxx: Float = 0, syy: Float = 0
+        for i in x.indices {
+            let dx = x[i] - mx, dy = y[i] - my
+            sxy += dx * dy; sxx += dx * dx; syy += dy * dy
+        }
+        guard sxx > 0, syy > 0 else { return 0 }
+        return sxy / sqrt(sxx * syy)
+    }
+}
+
 /// Radix-2 fast Fourier transform (Accelerate), in place on separate real and imaginary parts. The forward
 /// transform is not scaled; the inverse divides by the size.
 final class FFT {

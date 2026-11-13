@@ -169,7 +169,11 @@ enum BatchTranscriber {
         // only the stretches where the voice model hears someone go to Whisper.
         let micTrack = input.mic.map { EchoCanceller.clean(mic: $0, reference: input.samples) }
         var micPieces: [Chunker.Piece] = []
-        if let micTrack { micPieces = await Chunker.voiced(micTrack, maxLength: maxLength, level: 0.004) }
+        if let micTrack {
+            micPieces = await Chunker.voiced(micTrack, maxLength: maxLength, level: 0.004)
+            // While the other side talks, what is only the call coming back through the microphone stays out of Whisper.
+            micPieces = EchoLeak.keeping(micPieces, mic: micTrack, reference: input.samples)
+        }
         let total = max(1, (pieces + micPieces).reduce(0) { $0 + $1.end - $1.start })
         var done = 0.0
 

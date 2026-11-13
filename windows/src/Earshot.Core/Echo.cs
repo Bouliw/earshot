@@ -469,6 +469,145 @@ public static class EchoDelay
     }
 }
 
+/// <summary>The microphone while the other side talks. What it hears then is either the user (cutting in, a quick
+/// "yes") or the call itself: a faint copy through headphones, or what the echo canceller leaves. Whisper turns that copy
+/// into lines nobody said, close to the other side's words but not close enough for <see cref="EchoLines"/>. Two signs
+/// give it away: it is much quieter than the user's own voice, and its loudness follows the call's, syllable by
+/// syllable, a moment later. A stretch heard over the call is kept unless it shows one of them: the user cutting in
+/// speaks at their usual level, with a rhythm of their own.</summary>
+public static class EchoLeak
+{
+    public const int Frame = 320;          // 20 ms
+    const int Latest = 60, Earliest = -2;  // heard up to 1.2 s after the PC plays it (Bluetooth), or 40 ms before
+    /// <summary>A stretch whose loudest second stays under this share of the user's usual level is the call (about -9 dB).</summary>
+    public const float QuietShare = 0.35f;
+    /// <summary>A stretch whose loudness follows the call's at least this closely (correlation) is the call.</summary>
+    public const float FollowShare = 0.6f;
+
+    /// <summary>The pieces of the microphone (<paramref name="mic"/>, on the PC's clock) worth transcribing, given the
+    /// PC's track.</summary>
+    public static List<Piece> Keeping(IReadOnlyList<Piece> pieces, float[] mic, float[] reference)
+    {
+        if (pieces.Count == 0 || mic.Length == 0 || reference.Length == 0) return pieces.ToList();
+        var m = Envelope(mic);
+        var r = Envelope(reference);
+        var sounding = r.Where(v => v > 1e-4f).OrderBy(v => v).ToArray();
+        if (sounding.Length == 0) return pieces.ToList();
+        var talking = sounding[sounding.Length * 9 / 10] / 10;  // within 20 dB of the call's loud moments
+        // Whether the microphone may be hearing the call at each 20 ms: it talked in the last 1.2 s.
+        var heard = new bool[m.Length];
+        var lastOn = int.MinValue / 2;
+        for (var i = 0; i < m.Length; i++)
+        {
+            if (i < r.Length && r[i] > talking) lastOn = i;
+            heard[i] = i - lastOn <= Latest;
+        }
+        (int From, int To) Frames(Piece p)
+        {
+            var a = Math.Max(0, (int)(p.Start * Chunker.Rate) / Frame);
+            var b = Math.Min(m.Length, (int)(p.End * Chunker.Rate) / Frame);
+            return (a, Math.Max(a, b));
+        }
+        bool OverCall(Piece p)
+        {
+            var (a, b) = Frames(p);
+            if (b <= a) return false;
+            var n = 0;
+            for (var i = a; i < b; i++) if (heard[i]) n++;
+            return n * 10 >= (b - a) * 3;
+        }
+        // The user's usual level: the loudest second of what the microphone heard while the call was quiet.
+        var alone = pieces.Where(p => !OverCall(p)).Select(p => Loudest(m, Frames(p))).OrderBy(v => v).ToList();
+        float? usual = alone.Count >= 3 ? alone[alone.Count / 2] : null;
+        // How late the microphone hears the call, over the whole recording; each piece is then only checked around it.
+        var lag = Delay(m, r, talking);
+        int low = Math.Max(Earliest, lag - 5), high = Math.Min(Latest, lag + 5);
+        return pieces.Where(p =>
+        {
+            if (!OverCall(p)) return true;
+            var f = Frames(p);
+            if (usual is { } u && Loudest(m, f) < u * QuietShare) return false;
+            return Follows(m, r, f, talking, low, high) < FollowShare;
+        }).ToList();
+    }
+
+    /// <summary>The delay (in 20 ms) at which the microphone's loudness follows the call's best, over the whole recording.</summary>
+    public static int Delay(float[] m, float[] r, float talking)
+    {
+        int best = 0;
+        var bestScore = -2f;
+        for (var lag = Earliest; lag <= Latest; lag++)
+        {
+            var score = Follows(m, r, (0, m.Length), talking, lag, lag);
+            if (score > bestScore) { bestScore = score; best = lag; }
+        }
+        return best;
+    }
+
+    /// <summary>Loudness of each 20 ms.</summary>
+    public static float[] Envelope(float[] s)
+    {
+        var output = new float[(s.Length + Frame - 1) / Frame];
+        for (var k = 0; k < output.Length; k++) output[k] = Chunker.Rms(s, k * Frame, k * Frame + Frame);
+        return output;
+    }
+
+    /// <summary>The loudest second of <paramref name="f"/> (all of it when shorter).</summary>
+    public static float Loudest(float[] e, (int From, int To) f)
+    {
+        if (f.To <= f.From) return 0;
+        var n = Math.Min(50, f.To - f.From);
+        float sum = 0, best = 0;
+        for (var i = f.From; i < f.To; i++)
+        {
+            sum += e[i] * e[i];
+            if (i - n >= f.From) sum -= e[i - n] * e[i - n];
+            if (i - f.From + 1 >= n) best = Math.Max(best, sum);
+        }
+        return (float)Math.Sqrt(Math.Max(best, 0) / n);
+    }
+
+    /// <summary>How closely the loudness of <paramref name="f"/> follows the call's at the best delay from
+    /// <paramref name="low"/> to <paramref name="high"/> (in 20 ms), from -1 to 1, counted only where the call is talking
+    /// (a reply that starts as the other side stops does not count) and over half a second at least (a shorter overlap
+    /// tells nothing: 0).</summary>
+    public static float Follows(float[] m, float[] r, (int From, int To) f, float talking, int low, int high)
+    {
+        var best = 0f;
+        var x = new List<float>(f.To - f.From);
+        var y = new List<float>(f.To - f.From);
+        for (var lag = low; lag <= high; lag++)
+        {
+            x.Clear();
+            y.Clear();
+            for (var i = f.From; i < f.To; i++)
+            {
+                var j = i - lag;
+                if (j < 0 || j >= r.Length || r[j] <= talking) continue;
+                x.Add((float)Math.Log10(m[i] + 1e-4));
+                y.Add((float)Math.Log10(r[j] + 1e-4));
+            }
+            if (x.Count < 25) continue;  // half a second at least
+            best = Math.Max(best, Correlation(x, y));
+        }
+        return best;
+    }
+
+    static float Correlation(List<float> x, List<float> y)
+    {
+        float mx = x.Average(), my = y.Average();
+        float sxy = 0, sxx = 0, syy = 0;
+        for (var i = 0; i < x.Count; i++)
+        {
+            float dx = x[i] - mx, dy = y[i] - my;
+            sxy += dx * dy;
+            sxx += dx * dx;
+            syy += dy * dy;
+        }
+        return sxx > 0 && syy > 0 ? sxy / (float)Math.Sqrt(sxx * syy) : 0;
+    }
+}
+
 /// <summary>A last guard against echo: a line on the microphone whose words the other side said at that very moment
 /// was the speakers, not the user. A line keeps its place unless 70 % of its words were in the other side's lines then.</summary>
 public static class EchoLines

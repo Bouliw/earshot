@@ -119,4 +119,47 @@ import Testing
         let later = Segment(start: 30, end: 33, speaker: "Me", text: "Lundi on commence par la revue des incidents.", mic: true)
         #expect(EchoLines.dropping([other, echo, cutIn, later]) == [other, cutIn, later])
     }
+
+    static func noise(_ length: Int, level: Float, seed: UInt64) -> [Float] {
+        var state = seed &* 6_364_136_223_846_793_005 &+ 1
+        return (0..<length).map { _ in
+            state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            return level * (Float(state >> 40) / Float(1 << 24) * 2 - 1)
+        }
+    }
+
+    /// The call coming back faintly through headphones (30 dB down, 200 ms late): Whisper would write lines nobody said
+    /// over it. The user cutting in, answering as the other side stops, or talking alone is kept.
+    @Test func theCallsFaintCopyOnTheMicrophoneIsLeftOut() {
+        let length = 32 * Self.rate
+        let app = Self.place(Self.voice(seconds: 14, seed: 8, pitch: 650), at: 0, length: length)
+        var mic = Self.add(Self.room(app, delay: 3_200, gain: 0.03), Self.noise(length, level: 0.0005, seed: 13))
+        for (at, seed) in [(6.0, 9), (14.3, 10), (19.0, 11), (23.0, 12), (27.0, 14)] as [(Double, UInt64)] {
+            mic = Self.add(mic, Self.place(Self.voice(seconds: 3, seed: seed, pitch: 1_300), at: at, length: length))
+        }
+        let leak = Chunker.Piece(start: 1, end: 5, voice: nil)
+        let cutIn = Chunker.Piece(start: 5.8, end: 9.2, voice: nil)
+        let answer = Chunker.Piece(start: 14.1, end: 17.5, voice: nil)
+        let alone = [18.8, 22.8, 26.8].map { Chunker.Piece(start: $0, end: $0 + 3.4, voice: nil) }
+        #expect(EchoLeak.keeping([leak, cutIn, answer] + alone, mic: mic, reference: app) == [cutIn, answer] + alone)
+    }
+
+    /// Without the user's voice heard alone to compare with (they only cut in), the rhythm is enough: what is left of
+    /// laptop speakers after the canceller follows the call and goes; the user cutting in does not.
+    @Test func theCallsCopyIsToldFromTheUserByItsRhythm() {
+        let length = 16 * Self.rate
+        let app = Self.place(Self.voice(seconds: 16, seed: 15, pitch: 700), at: 0, length: length)
+        let user = Self.place(Self.voice(seconds: 3, seed: 16, pitch: 1_400), at: 9, length: length)
+        let mic = Self.add(Self.add(Self.room(app, delay: 1_280, gain: 0.1), user), Self.noise(length, level: 0.0005, seed: 17))
+        let leak = Chunker.Piece(start: 2, end: 7, voice: nil)
+        let cutIn = Chunker.Piece(start: 8.8, end: 12.2, voice: nil)
+        #expect(EchoLeak.keeping([leak, cutIn], mic: mic, reference: app) == [cutIn])
+    }
+
+    @Test func whileTheCallIsSilentTheMicrophoneIsKept() {
+        let length = 10 * Self.rate
+        let mic = Self.place(Self.voice(seconds: 3, seed: 18, pitch: 1_200), at: 2, length: length)
+        let pieces = [Chunker.Piece(start: 1.8, end: 5.2, voice: nil)]
+        #expect(EchoLeak.keeping(pieces, mic: mic, reference: [Float](repeating: 0, count: length)) == pieces)
+    }
 }

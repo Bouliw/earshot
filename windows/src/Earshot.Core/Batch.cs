@@ -80,7 +80,8 @@ public sealed class BatchTranscriber
         // The microphone is never muted: the PC's sound is taken out of it, so the user's words stay even when they
         // speak over the other side.
         float[]? mic = input.Mic is { Length: > 0 } m ? EchoCanceller.Clean(m, input.Samples) : null;
-        var micPieces = mic != null ? Voiced(mic, maxLength, 0.004f) : new List<Piece>();
+        // While the other side talks, what is only the call coming back through the microphone stays out of Whisper.
+        var micPieces = mic != null ? EchoLeak.Keeping(Voiced(mic, maxLength, 0.004f), mic, input.Samples) : new List<Piece>();
         var total = Math.Max(1, pieces.Concat(micPieces).Sum(p => p.Length));
         var done = 0.0;
 

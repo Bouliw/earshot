@@ -124,8 +124,10 @@ final class TranscriptionQueue {
                 record.status = nil
                 record.failure = nil
                 // The separate tracks only served to tell the user's voice from the call's.
-                try? FileManager.default.removeItem(at: appTrack)
-                try? FileManager.default.removeItem(at: micTrack)
+                if !defaults.bool(forKey: Pref.keepTracks) {
+                    try? FileManager.default.removeItem(at: appTrack)
+                    try? FileManager.default.removeItem(at: micTrack)
+                }
                 SessionStore.write(record, to: job.folder)
                 onFinished(job.folder)  // the transcript shows now, while its summary is written
             }

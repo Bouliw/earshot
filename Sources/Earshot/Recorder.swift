@@ -20,6 +20,9 @@ enum Pref {
     static let indexTranscripts = "indexTranscripts"
     static let indexer = "docIndexerScript"   // path to doc-indexer's extract_texts.py ("": found by itself)
     static let indexFolder = "indexFolder"    // "": the folder sessions are saved to
+    /// Not in Settings: keeps each session's two hidden tracks (.app.pcm, .mic.pcm) once the transcript is done, to
+    /// look into how the microphone was cleaned (`defaults write io.github.bouliw.Earshot keepTracks -bool true`).
+    static let keepTracks = "keepTracks"
     static let defaultFolder = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Documents/Earshot").path
 
     /// Every folder sessions are saved to: the "Save to" folder, and the calls folder when it is another one.

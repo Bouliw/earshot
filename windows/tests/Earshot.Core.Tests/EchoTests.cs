@@ -119,4 +119,51 @@ public sealed class EchoTests
         var kept = EchoLines.Dropping(new[] { other, echo, cutIn, later });
         Assert.Equal(new[] { other, cutIn, later }, kept);
     }
+
+    static float[] Noise(int length, float level, int seed)
+    {
+        var random = new Random(seed);
+        var output = new float[length];
+        for (var i = 0; i < length; i++) output[i] = level * (float)(random.NextDouble() * 2 - 1);
+        return output;
+    }
+
+    /// <summary>The call coming back faintly through headphones (30 dB down, 200 ms late): Whisper would write lines
+    /// nobody said over it. The user cutting in, answering as the other side stops, or talking alone is kept.</summary>
+    [Fact]
+    public void TheCallsFaintCopyOnTheMicrophoneIsLeftOut()
+    {
+        var length = 32 * Rate;
+        var pc = Place(Voice(14, 8, 650), 0, length);
+        var mic = Add(Room(pc, 3200, 0.03f), Noise(length, 0.0005f, 13));
+        foreach (var (at, seed) in new[] { (6.0, 9), (14.3, 10), (19.0, 11), (23.0, 12), (27.0, 14) })
+            mic = Add(mic, Place(Voice(3, seed, 1300), at, length));
+        var leak = new Piece(1, 5);
+        var cutIn = new Piece(5.8, 9.2);
+        var answer = new Piece(14.1, 17.5);
+        var alone = new[] { 18.8, 22.8, 26.8 }.Select(s => new Piece(s, s + 3.4)).ToList();
+        var kept = EchoLeak.Keeping(new[] { leak, cutIn, answer }.Concat(alone).ToList(), mic, pc);
+        Assert.Equal(new[] { cutIn, answer }.Concat(alone), kept);
+    }
+
+    /// <summary>Without the user's voice heard alone to compare with (they only cut in), the rhythm is enough: what is
+    /// left of laptop speakers after the canceller follows the call and goes; the user cutting in does not.</summary>
+    [Fact]
+    public void TheCallsCopyIsToldFromTheUserByItsRhythm()
+    {
+        var length = 16 * Rate;
+        var pc = Place(Voice(16, 15, 700), 0, length);
+        var mic = Add(Room(pc, 1280, 0.1f), Place(Voice(3, 16, 1400), 9, length), Noise(length, 0.0005f, 17));
+        var cutIn = new Piece(8.8, 12.2);
+        Assert.Equal(new[] { cutIn }, EchoLeak.Keeping(new[] { new Piece(2, 7), cutIn }, mic, pc));
+    }
+
+    [Fact]
+    public void WhileTheCallIsSilentTheMicrophoneIsKept()
+    {
+        var length = 10 * Rate;
+        var mic = Place(Voice(3, 18, 1200), 2, length);
+        var pieces = new[] { new Piece(1.8, 5.2) };
+        Assert.Equal(pieces, EchoLeak.Keeping(pieces, mic, new float[length]));
+    }
 }
