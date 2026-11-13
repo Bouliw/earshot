@@ -167,6 +167,19 @@ dotnet run --project windows/tools/Earshot.Check -- --check pc-sound.wav --mic m
 
 On Windows, `Earshot.exe --check recording.wav --out result.txt` does the same with the libraries of that install.
 
+## More tools by Bouliw
+
+- [Roughcut](https://github.com/Bouliw/fcpxml-roughcut): Turns talking-head footage into a rough cut you finish in Final Cut Pro.
+- [Vigie](https://github.com/Bouliw/vigie): Sigma detection on Windows, Linux and macOS logs, with a report mapped to MITRE ATT&CK.
+- [doc-indexer-macos](https://github.com/Bouliw/doc-indexer-macos): On-device OCR for a folder of paperwork, ready for grep or an AI agent.
+- [Lantern](https://github.com/Bouliw/lantern): A stylish Jellyfin client for desktop, LG webOS TVs and phones.
+- [Boulito](https://github.com/Bouliw/boulito): A voice assistant that runs 100% on your Mac.
+- [trackmend](https://github.com/Bouliw/trackmend): Repairs a macOS Music library full of local files.
+- [Takeline](https://github.com/Bouliw/takeline): A teleprompter that follows your voice, entirely on your Mac.
+- [mac-toolkit](https://github.com/Bouliw/mac-toolkit): Small tools I use every day on my Mac.
+
+All projects: [bouliw.github.io](https://bouliw.github.io)
+
 ## License
 
 MIT
