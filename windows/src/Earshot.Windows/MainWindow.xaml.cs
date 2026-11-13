@@ -21,7 +21,16 @@ public sealed class SessionItem
 {
     public required SessionRecord Record { get; init; }
     public string Title => Record.Title;
-    public string Subtitle => SessionStore.LongDate(Record.StartedAt) + (Record.Duration > 0 ? " · " + L.Minutes(Record.Duration) : "");
+    public string Subtitle => When(Record);
+
+    /// <summary>The date in the language of Windows ("13 novembre 2026 · 09:00 · 21 min"), then the length.</summary>
+    public static string When(SessionRecord r)
+    {
+        var local = DateTime.SpecifyKind(r.StartedAt, DateTimeKind.Utc).ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        var date = local.ToString(culture.DateTimeFormat.LongDatePattern.Replace("dddd", "").Trim(' ', ',', '.'), culture);
+        return $"{date} · {local.ToString("t", culture)}" + (r.Duration > 0 ? " · " + L.Minutes(r.Duration) : "");
+    }
     public string Status { get; init; } = "";
     public Visibility StatusVisibility => Status.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 }
@@ -175,7 +184,7 @@ public partial class MainWindow : Window
         DetailPanel.Visibility = record == null ? Visibility.Collapsed : Visibility.Visible;
         if (record == null) return;
         DetailTitle.Text = record.Title;
-        DetailSubtitle.Text = SessionStore.LongDate(record.StartedAt) + (record.Duration > 0 ? " · " + L.Minutes(record.Duration) : "");
+        DetailSubtitle.Text = SessionItem.When(record);
         var status = StatusOf(record);
         if (status.Length == 0 && record.Segments.Count == 0) status = L.NothingSaid;
         DetailStatus.Text = status;
