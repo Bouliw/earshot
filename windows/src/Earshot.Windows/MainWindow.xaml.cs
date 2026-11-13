@@ -51,6 +51,12 @@ public partial class MainWindow : Window
     {
         this.app = app;
         InitializeComponent();
+        // Fits small screens (and virtual machines) whole.
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(Width, area.Width - 24);
+        Height = Math.Min(Height, area.Height - 24);
+        MinWidth = Math.Min(MinWidth, Width);
+        MinHeight = Math.Min(MinHeight, Height);
         ApplyTexts();
         LoadMicrophones();
         RefreshSessions();
