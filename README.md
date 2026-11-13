@@ -37,7 +37,7 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 | Piece | What it uses |
 | --- | --- |
 | Per-app capture | Core Audio process taps (`CATapDescription`, macOS 14.2+) on all of the app's audio processes, helpers included |
-| Transcription | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with Metal. Audio is cut at pauses, silence is skipped so Whisper does not hallucinate. After the call, each piece is one voice and gets its own language |
+| Transcription | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) with Metal. Audio is cut at pauses, silence is skipped so Whisper does not hallucinate. After the call, Silero's voice activity model (Core ML, through FluidAudio) keeps only the stretches where someone speaks, so breathing, typing and room noise on the microphone do not turn into made-up lines. Each piece is one voice and gets its own language |
 | Voices | [FluidAudio](https://github.com/FluidInference/FluidAudio)'s offline speaker diarization (pyannote segmentation and speaker embeddings in Core ML, on the Neural Engine). Each voice takes the Teams name heard most over its turns |
 | Speaker names | Teams' "Live Captions" panel, read through `AXUIElement`, kept with the session so the voices can be named after the call |
 | Calendar | EventKit |
@@ -73,7 +73,7 @@ macOS asks for each permission the first time Earshot needs it:
 
 Earshot works without the optional ones: sessions are then named after the app, and voices are numbered instead of named.
 
-The first time voices are told apart, Earshot downloads the speaker models (about 40 MB, from Hugging Face) into `~/Library/Application Support/Earshot/Speakers`. Turn "Tell voices apart" off in Settings to skip them. With the microphone included, the app and your voice are also kept as two hidden tracks until the transcript is done, so your voice is never taken for someone else's.
+The first time voices are told apart, Earshot downloads the speaker models (about 40 MB, from Hugging Face) into `~/Library/Application Support/Earshot/Speakers`. The first transcript made after the call also downloads the voice activity model (about 1 MB) into `~/Library/Application Support/Earshot/Voice activity`; without it, Earshot falls back on the sound level. Turn "Tell voices apart" off in Settings to skip them. With the microphone included, the app and your voice are also kept as two hidden tracks until the transcript is done, so your voice is never taken for someone else's.
 
 ### High subtitles
 

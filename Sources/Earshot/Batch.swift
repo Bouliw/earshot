@@ -89,6 +89,17 @@ enum Chunker {
             .flatMap { split($0, samples: samples, maxLength: maxLength) }
     }
 
+    /// Where a voice is heard, found by the voice activity model. Falls back on the sound level when the
+    /// model cannot load (no network for its first download, say).
+    static func voiced(_ samples: [Float], maxLength: Double, level: Float? = nil) async -> [Piece] {
+        guard let regions = try? await VoiceActivity.shared.speech(in: samples, maxLength: maxLength) else {
+            return speech(samples, maxLength: maxLength, level: level)
+        }
+        return regions
+            .map { Piece(start: $0.start, end: $0.end, voice: nil) }
+            .flatMap { split($0, samples: samples, maxLength: maxLength) }
+    }
+
     /// Cuts a long piece in the quietest 100 ms of the last 5 s before each `maxLength`.
     static func split(_ piece: Piece, samples: [Float], maxLength: Double) -> [Piece] {
         var out: [Piece] = []
@@ -150,8 +161,13 @@ enum BatchTranscriber {
         }
         progress(0.1)
         let maxLength = input.language == "auto" ? 15.0 : 25.0
-        let pieces = turns.isEmpty ? Chunker.speech(input.samples, maxLength: maxLength) : Chunker.pieces(turns: turns, samples: input.samples, maxLength: maxLength)
-        let micPieces = input.mic.map { Chunker.speech($0, maxLength: maxLength, level: 0.004) } ?? []
+        let pieces = turns.isEmpty
+            ? await Chunker.voiced(input.samples, maxLength: maxLength)
+            : Chunker.pieces(turns: turns, samples: input.samples, maxLength: maxLength)
+        // The microphone hears the user's breathing, typing and room noise between their sentences: only the
+        // stretches where the voice model hears someone go to Whisper.
+        var micPieces: [Chunker.Piece] = []
+        if let mic = input.mic { micPieces = await Chunker.voiced(mic, maxLength: maxLength, level: 0.004) }
         let total = max(1, (pieces + micPieces).reduce(0) { $0 + $1.end - $1.start })
         var done = 0.0
 
