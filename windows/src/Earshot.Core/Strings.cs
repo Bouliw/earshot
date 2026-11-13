@@ -2,14 +2,26 @@ using System.Globalization;
 
 namespace Earshot.Core;
 
-/// <summary>Interface text in English and French, following the language of Windows.</summary>
+/// <summary>Interface text in English and French: the language of Windows, or the one picked in Settings.</summary>
 public static class L
 {
-    static bool french = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "fr";
+    static readonly bool windowsIsFrench = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "fr";
+    static bool french = windowsIsFrench;
+    static CultureInfo? culture;
 
-    /// <summary>Picks the language ("en", "fr"); anything else is English.</summary>
-    public static void Use(string language) => french = language == "fr";
+    /// <summary>Picks the language: "en", "fr", or "system" for the language of Windows; anything else is English.</summary>
+    public static void Use(string language)
+    {
+        french = language switch { "fr" => true, "system" => windowsIsFrench, _ => false };
+        // Dates follow the regional format of Windows, unless the app was set to the other language.
+        culture = french == windowsIsFrench ? null : CultureInfo.GetCultureInfo(french ? "fr-FR" : "en-US");
+    }
     public static bool IsFrench => french;
+    /// <summary>The culture dates and times are written in.</summary>
+    public static CultureInfo Culture => culture ?? CultureInfo.CurrentCulture;
+
+    public static string AppLanguage => T("App language", "Langue de l'app");
+    public static string SameAsWindows => T("Same as Windows", "Comme Windows");
 
     static string T(string en, string fr) => french ? fr : en;
 

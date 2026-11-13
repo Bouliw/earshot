@@ -23,11 +23,11 @@ public sealed class SessionItem
     public string Title => Record.Title;
     public string Subtitle => When(Record);
 
-    /// <summary>The date in the language of Windows ("13 novembre 2026 · 09:00 · 21 min"), then the length.</summary>
+    /// <summary>The date in the language of the app ("13 novembre 2026 · 09:00 · 21 min"), then the length.</summary>
     public static string When(SessionRecord r)
     {
         var local = DateTime.SpecifyKind(r.StartedAt, DateTimeKind.Utc).ToLocalTime();
-        var culture = CultureInfo.CurrentCulture;
+        var culture = L.Culture;
         var date = local.ToString(culture.DateTimeFormat.LongDatePattern.Replace("dddd", "").Trim(' ', ',', '.'), culture);
         return $"{date} · {local.ToString("t", culture)}" + (r.Duration > 0 ? " · " + L.Minutes(r.Duration) : "");
     }
@@ -75,7 +75,7 @@ public partial class MainWindow : Window
         ticker.Start();
     }
 
-    void ApplyTexts()
+    public void ApplyTexts()
     {
         SettingsButton.ToolTip = L.Settings;
         MicLabel.Text = L.Microphone;
@@ -204,7 +204,7 @@ public partial class MainWindow : Window
         TurnList.ItemsSource = Turn.Group(record.Segments).Select(t => new TurnItem
         {
             Speaker = t.Speaker,
-            Time = local.AddSeconds(t.Start).ToString("T", CultureInfo.CurrentCulture),
+            Time = local.AddSeconds(t.Start).ToString("T", L.Culture),
             Text = t.Text,
             Brush = SpeakerBrush(t.Speaker),
         }).ToList();
@@ -273,9 +273,11 @@ public partial class MainWindow : Window
 
     void OnSettings(object sender, RoutedEventArgs e)
     {
+        var language = app.Settings.InterfaceLanguage;
         var dialog = new SettingsWindow(app.Settings) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         app.SaveSettings();
+        if (app.Settings.InterfaceLanguage != language) app.ApplyLanguage();
         RefreshSessions();
     }
 

@@ -6,6 +6,8 @@ namespace Earshot.Core;
 /// <summary>What the user chose in Settings, kept in %LOCALAPPDATA%\Earshot\settings.json.</summary>
 public sealed class AppSettings
 {
+    /// <summary>The language of Earshot's windows: "system" (the language of Windows), "en" or "fr".</summary>
+    [JsonPropertyName("interfaceLanguage")] public string InterfaceLanguage { get; set; } = "system";
     [JsonPropertyName("model")] public string Model { get; set; } = ModelCatalog.DefaultWhisper;
     /// <summary>"auto", "en" or "fr".</summary>
     [JsonPropertyName("language")] public string Language { get; set; } = "auto";

@@ -36,6 +36,12 @@ public partial class SettingsWindow : Window
         var version = Assembly.GetExecutingAssembly().GetName().Version;
         VersionText.Text = $"Earshot for Windows {version?.ToString(3)} · {ModelCatalog.Folder}";
 
+        AppLanguageLabel.Text = L.AppLanguage;
+        // Each language is written in its own words, so it can be found whatever the app shows now.
+        var appLanguages = new[] { new Choice("system", L.SameAsWindows), new Choice("en", "English"), new Choice("fr", "Français") };
+        AppLanguageBox.ItemsSource = appLanguages;
+        AppLanguageBox.SelectedItem = appLanguages.FirstOrDefault(l => l.Id == settings.InterfaceLanguage) ?? appLanguages[0];
+
         var models = ModelCatalog.Whisper.Select(m => new Choice(m.Id,
             $"{m.Label} · {(ModelCatalog.IsReady(m) ? L.Downloaded : L.ToDownload(m.SizeText))}")).ToList();
         ModelBox.ItemsSource = models;
@@ -81,6 +87,7 @@ public partial class SettingsWindow : Window
 
     void OnSave(object sender, RoutedEventArgs e)
     {
+        settings.InterfaceLanguage = (AppLanguageBox.SelectedItem as Choice)?.Id ?? "system";
         settings.Model = (ModelBox.SelectedItem as Choice)?.Id ?? ModelCatalog.DefaultWhisper;
         settings.Language = (LanguageBox.SelectedItem as Choice)?.Id ?? "auto";
         var name = NameBox.Text.Trim();

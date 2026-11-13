@@ -12,6 +12,9 @@
         </StackPanel>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                <TextBlock x:Name="AppLanguageLabel" Style="{StaticResource Label}" />
+                <ComboBox x:Name="AppLanguageBox" DisplayMemberPath="Text" Margin="0,0,0,18" />
+
                 <TextBlock x:Name="ModelLabel" Style="{StaticResource Label}" />
                 <ComboBox x:Name="ModelBox" DisplayMemberPath="Text" />
                 <TextBlock x:Name="ModelHint" Style="{StaticResource Muted}" Margin="0,6,0,0" />

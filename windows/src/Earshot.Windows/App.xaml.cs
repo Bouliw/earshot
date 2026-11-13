@@ -54,6 +54,7 @@ public partial class App : Application
 
         DispatcherUnhandledException += OnUnhandled;
         Settings = AppSettings.Load();
+        L.Use(Settings.InterfaceLanguage);
         Queue = new TranscriptionQueue(() => Recorder.IsRecording, () => Settings);
         Queue.Progress += (folder, p) => Dispatcher.BeginInvoke(() => window?.OnJobProgress(folder, p));
         Queue.Transcribed += (folder, _) => Dispatcher.BeginInvoke(() => window?.RefreshSessions());
@@ -90,6 +91,17 @@ public partial class App : Application
     public void SaveSettings()
     {
         try { Settings.Save(); } catch (Exception) { /* read-only profile: the choice lasts for this run */ }
+    }
+
+    /// <summary>The language picked in Settings, right away: no restart, a recording goes on.</summary>
+    public void ApplyLanguage()
+    {
+        L.Use(Settings.InterfaceLanguage);
+        tray?.ApplyTexts(Recorder.IsRecording);
+        if (window == null) return;
+        window.ApplyTexts();
+        window.LoadMicrophones();
+        window.UpdateRecordingState();
     }
 
     // MARK: Recording

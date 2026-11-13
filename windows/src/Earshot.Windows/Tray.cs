@@ -11,17 +11,21 @@ sealed class Tray : IDisposable
 {
     readonly App app;
     readonly WinForms.NotifyIcon icon;
+    readonly WinForms.ToolStripMenuItem openItem;
     readonly WinForms.ToolStripMenuItem recordItem;
+    readonly WinForms.ToolStripMenuItem quitItem;
 
     public Tray(App app)
     {
         this.app = app;
         var menu = new WinForms.ContextMenuStrip();
-        menu.Items.Add(L.OpenEarshot, null, (_, _) => app.ShowWindow());
+        openItem = new WinForms.ToolStripMenuItem(L.OpenEarshot, null, (_, _) => app.ShowWindow());
         recordItem = new WinForms.ToolStripMenuItem(L.StartRecording, null, (_, _) => app.ToggleRecording());
+        quitItem = new WinForms.ToolStripMenuItem(L.Quit, null, (_, _) => app.Quit());
+        menu.Items.Add(openItem);
         menu.Items.Add(recordItem);
         menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add(L.Quit, null, (_, _) => app.Quit());
+        menu.Items.Add(quitItem);
         icon = new WinForms.NotifyIcon
         {
             Icon = LoadIcon(),
@@ -44,6 +48,14 @@ sealed class Tray : IDisposable
     {
         recordItem.Text = recording ? L.StopRecording : L.StartRecording;
         icon.Text = recording ? $"Earshot · {L.Recording}" : "Earshot";
+    }
+
+    /// <summary>The menu again, after the app's language changed.</summary>
+    public void ApplyTexts(bool recording)
+    {
+        openItem.Text = L.OpenEarshot;
+        quitItem.Text = L.Quit;
+        Update(recording);
     }
 
     public void Notify(string text) => icon.ShowBalloonTip(5000, "Earshot", text, WinForms.ToolTipIcon.None);

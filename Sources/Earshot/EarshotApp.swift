@@ -36,7 +36,7 @@ struct EarshotApp: App {
         .defaultSize(width: 1000, height: 640)
 
         Settings {
-            SettingsView()
+            SettingsView().environment(state)
         }
     }
 }
@@ -71,6 +71,11 @@ private struct MenuBarLabel: View {
             }
             .onAppear {
                 if state.demo { for id in state.demoWindows { if id == "settings" { openSettings() } else { openWindow(id: id) } } }
+                // `--settings`: back in Settings after a relaunch to switch the app's language.
+                if CommandLine.arguments.contains("--settings") {
+                    NSApp.activate()
+                    openSettings()
+                }
                 // `--record <bundle ID prefix>`: start right away (testing without clicking).
                 if let i = CommandLine.arguments.firstIndex(of: "--record"), i + 1 < CommandLine.arguments.count,
                    let app = AudioApp.all().first(where: { $0.bundleID.hasPrefix(CommandLine.arguments[i + 1]) }) {

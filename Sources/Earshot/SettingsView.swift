@@ -2,6 +2,7 @@ import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(AppState.self) private var state
     @AppStorage(Pref.language) private var language = "auto"
     @AppStorage("interfaceLanguage") private var interfaceLanguage = "system"
     @AppStorage(Pref.model) private var model = ""
@@ -19,6 +20,11 @@ struct SettingsView: View {
     @ViewState private var trusted = TeamsCaptions.isTrusted
     @ViewState private var openAtLogin = SMAppService.mainApp.status == .enabled
     private let models = WhisperModel.installed()
+
+    /// The language picked differs from the one Earshot opened in.
+    private var needsRelaunch: Bool { AppLanguage.resolved(interfaceLanguage) != AppLanguage.running }
+    /// A relaunch would cut a recording or a transcript short.
+    private var busy: Bool { state.recorder.isActive || state.queue.current != nil }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -42,9 +48,20 @@ struct SettingsView: View {
                 .onChange(of: interfaceLanguage) { _, value in
                     if value == "system" { UserDefaults.standard.removeObject(forKey: "AppleLanguages") }
                     else { UserDefaults.standard.set([value], forKey: "AppleLanguages") }
+                    // Switched right away, unless a relaunch would cut a recording or a transcript short.
+                    if needsRelaunch && !busy { AppLanguage.relaunch() }
                 }
             } footer: {
-                Text("Takes effect the next time Earshot opens.").foregroundStyle(.secondary)
+                if needsRelaunch {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(busy ? "Earshot can relaunch in this language once the recording and the transcripts are done."
+                                  : "Earshot relaunches in this language.")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Relaunch now") { AppLanguage.relaunch() }
+                            .disabled(busy)
+                    }
+                }
             }
             Section {
                 Picker("Transcribe", selection: $mode) {
@@ -283,6 +300,39 @@ private struct EngineRow: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("\(Kyutai.size) to download: the Kyutai model from Hugging Face and its Python packages, into ~/Library/Application Support/Earshot/Kyutai. Needs Python 3.10 to 3.12.")
+        }
+    }
+}
+
+/// The language of Earshot's own windows and menus: the Mac's, or English or French whatever the Mac uses.
+enum AppLanguage {
+    static let supported = ["en", "fr"]
+
+    /// The language this run of Earshot shows.
+    static var running: String { Bundle.main.preferredLocalizations.first ?? "en" }
+
+    /// "en" or "fr" for a choice in Settings ("system", "en" or "fr").
+    static func resolved(_ choice: String) -> String {
+        if supported.contains(choice) { return choice }
+        let mac = CFPreferencesCopyValue("AppleLanguages" as CFString, kCFPreferencesAnyApplication,
+                                         kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? [String]
+        return Bundle.preferredLocalizations(from: supported, forPreferences: mac ?? Locale.preferredLanguages).first ?? "en"
+    }
+
+    /// Quits, then opens Earshot again on its Settings, now in the language picked.
+    /// Only called when nothing is being recorded or transcribed.
+    static func relaunch() {
+        UserDefaults.standard.synchronize()  // the language must be on disk before the next run reads it
+        let reopen = Process()
+        reopen.executableURL = URL(filePath: "/bin/sh")
+        reopen.arguments = ["-c", "while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$2\" --args --settings",
+                            "sh", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundlePath]
+        do { try reopen.run() } catch { return }
+        // Let the picker's menu close first.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // `terminate` can be held back while a window is busy; never leave the old run open.
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) { exit(0) }
+            NSApp.terminate(nil)
         }
     }
 }

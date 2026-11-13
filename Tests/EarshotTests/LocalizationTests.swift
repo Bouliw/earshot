@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import Earshot
 
 /// The French tables are read from Resources: `swift test` cannot load them as the app does,
 /// `Earshot --check` covers the keys with interpolations in the built app.
@@ -23,6 +24,12 @@ import Testing
             #expect(!value.isEmpty, "empty translation of \(key)")
             #expect(try placeholders(key) == placeholders(value), "placeholders differ in \(key)")
         }
+    }
+
+    @Test func theAppLanguagePickedInSettingsWinsOverTheMacs() {
+        #expect(AppLanguage.resolved("fr") == "fr")
+        #expect(AppLanguage.resolved("en") == "en")
+        #expect(AppLanguage.supported.contains(AppLanguage.resolved("system")))
     }
 
     @Test func frenchPermissionPromptsMatchTheKeysInInfoPlist() throws {
