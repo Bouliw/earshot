@@ -216,7 +216,8 @@ public partial class MainWindow : Window
         SummaryText.Inlines.Clear();
         SummaryPanel.Visibility = text == null ? Visibility.Collapsed : Visibility.Visible;
         if (text == null) return;
-        var lines = text.Replace("\r", "").Split('\n').Skip(1).SkipWhile(l => l.Length == 0).ToList();
+        // The panel's own title already says "Summary": the section heading of the same name is left out.
+        var lines = text.Replace("\r", "").Split('\n').Skip(1).Where(l => l != "Summary" && l != "Résumé").SkipWhile(l => l.Length == 0).ToList();
         while (lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
         for (var i = 0; i < lines.Count; i++)
         {

@@ -90,7 +90,7 @@ public sealed class LlamaSummaryModel : ISummaryModel, IDisposable
             prepared = true;
             NativeLibraryConfig.All.WithLogCallback((level, message) =>
             {
-                if (message.Contains("librar", StringComparison.OrdinalIgnoreCase) || level >= LLamaLogLevel.Error) Log?.Invoke("llama: " + message.TrimEnd());
+                if (message.Contains("librar", StringComparison.OrdinalIgnoreCase) || level == LLamaLogLevel.Error) Log?.Invoke("llama: " + message.TrimEnd());
             });
             if (!OperatingSystem.IsWindows()) return;
             var arm = RuntimeInformation.ProcessArchitecture == Architecture.Arm64;

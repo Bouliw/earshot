@@ -25,10 +25,12 @@ struct SummaryCard: View {
         }
     }
 
-    /// The text without its first line (the window already shows the title and date), headings in bold.
+    /// The text without its first line (the window already shows the title and date) and its first heading, headings in bold.
     static func render(_ text: String) -> AttributedString {
         var out = AttributedString()
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).dropFirst().drop { $0.isEmpty }
+        // The card's own label already says "Summary": the section heading of the same name is left out.
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).dropFirst()
+            .filter { $0 != "Summary" && $0 != "Résumé" }.drop { $0.isEmpty }
         for (i, line) in lines.enumerated() {
             var part = AttributedString(String(line) + (i < lines.count - 1 ? "\n" : ""))
             if Summary.allHeadings.contains(String(line)) { part.font = .body.bold() }
