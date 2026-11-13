@@ -26,12 +26,13 @@
   <ItemGroup>
     <Resource Include="Assets\earshot.ico" />
   </ItemGroup>
-  <!-- Whisper.net ships whisper.cpp for every platform; a published build keeps only its own. -->
+  <!-- Whisper.net and LLamaSharp ship their native libraries for every platform; a published build keeps only its own. -->
   <Target Name="KeepOnlyThisPlatform" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
     <ItemGroup>
-      <OtherPlatform Include="linux-arm;linux-arm64;linux-x64;macos-arm64;macos-x64;win-x86;win-x64;win-arm64" Exclude="$(RuntimeIdentifier)" />
+      <PlatformFolder Include="$([System.IO.Directory]::GetDirectories('$(PublishDir)runtimes'))" />
+      <OtherPlatform Include="@(PlatformFolder)" Condition="'%(Filename)%(Extension)' != '$(RuntimeIdentifier)'" />
     </ItemGroup>
-    <RemoveDir Directories="@(OtherPlatform->'$(PublishDir)runtimes\%(Identity)')" />
+    <RemoveDir Directories="@(OtherPlatform)" />
     <Delete Files="$(PublishDir)ggml-metal.metal" />
   </Target>
 </Project>

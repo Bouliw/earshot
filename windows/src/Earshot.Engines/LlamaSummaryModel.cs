@@ -1,7 +1,10 @@
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 using Earshot.Core;
 using LLama;
 using LLama.Common;
+using LLama.Native;
 using LLama.Sampling;
 
 namespace Earshot.Engines;
@@ -24,6 +27,7 @@ public sealed class LlamaSummaryModel : ISummaryModel, IDisposable
 
     public LlamaSummaryModel(string modelPath)
     {
+        Prepare();
         ModelPath = modelPath;
         parameters = new ModelParams(modelPath)
         {
@@ -68,6 +72,53 @@ public sealed class LlamaSummaryModel : ISummaryModel, IDisposable
     }
 
     public void Dispose() => weights.Dispose();
+
+    [DllImport("kernel32", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool SetDllDirectory(string path);
+
+    static bool prepared;
+    static readonly object PrepareGate = new();
+
+    /// <summary>On Windows, llama.cpp comes in one folder per CPU level (runtimes\win-x64\native\avx2…). The one this CPU
+    /// can run is picked here, and Windows is told to look in that folder too, so the libraries llama.dll needs next to it
+    /// (ggml*.dll) load with it. Elsewhere LLamaSharp finds its library by itself.</summary>
+    static void Prepare()
+    {
+        lock (PrepareGate)
+        {
+            if (prepared) return;
+            prepared = true;
+            NativeLibraryConfig.All.WithLogCallback((level, message) =>
+            {
+                if (message.Contains("librar", StringComparison.OrdinalIgnoreCase) || level >= LLamaLogLevel.Error) Log?.Invoke("llama: " + message.TrimEnd());
+            });
+            if (!OperatingSystem.IsWindows()) return;
+            var arm = RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
+            var native = Path.Combine(AppContext.BaseDirectory, "runtimes", arm ? "win-arm64" : "win-x64", "native");
+            var levels = arm ? new[] { "" } : new[]
+            {
+                Avx512F.IsSupported ? "avx512" : null, Avx2.IsSupported ? "avx2" : null, Avx.IsSupported ? "avx" : null, "noavx",
+            }.OfType<string>().ToArray();
+            var folder = levels.Select(l => Path.Combine(native, l)).FirstOrDefault(f => File.Exists(Path.Combine(f, "llama.dll")));
+            if (folder == null) { Log?.Invoke("llama: no llama.dll under " + native); return; }
+            SetDllDirectory(folder);
+            // Dependencies first, so llama.dll finds them already loaded.
+            var handles = new Dictionary<string, IntPtr>();
+            foreach (var name in new[] { "ggml-base", "ggml-cpu", "ggml", "llama", "mtmd" })
+            {
+                var path = Path.Combine(folder, name + ".dll");
+                if (File.Exists(path) && NativeLibrary.TryLoad(path, out var handle)) handles[name] = handle;
+                else Log?.Invoke("llama: could not load " + path);
+            }
+            try
+            {
+                NativeLibrary.SetDllImportResolver(typeof(LLamaWeights).Assembly, (name, _, _) =>
+                    handles.TryGetValue(Path.GetFileNameWithoutExtension(name).Replace("lib", ""), out var handle) ? handle : IntPtr.Zero);
+            }
+            catch (InvalidOperationException) { /* LLamaSharp set its own resolver: it finds the libraries itself */ }
+            Log?.Invoke("llama: using " + folder);
+        }
+    }
 
     static LlamaSummaryModel? cached;
     static readonly object CacheGate = new();
