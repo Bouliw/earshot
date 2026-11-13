@@ -7,7 +7,8 @@
 
 [![Tests](https://github.com/Bouliw/earshot/actions/workflows/tests.yml/badge.svg)](https://github.com/Bouliw/earshot/actions/workflows/tests.yml)
 
-**[Download Earshot for Mac](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg)** · macOS 26 or later, Apple silicon
+**[Download Earshot for Mac](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg)** · macOS 26 or later, Apple silicon<br>
+**Earshot for Windows:** [x64](https://github.com/Bouliw/earshot/releases/latest/download/Earshot-Windows-x64.zip) · [Arm64](https://github.com/Bouliw/earshot/releases/latest/download/Earshot-Windows-arm64.zip) · Windows 10 or 11, after the call only ([details](#earshot-for-windows))
 
 On-device transcription of any app on your Mac, live or once the call is over, with each voice told apart.
 
@@ -111,6 +112,57 @@ To check the pipeline on an audio file without a call (the transcript, then the 
 build/Earshot.app/Contents/MacOS/Earshot --transcribe some-recording.wav
 build/Earshot.app/Contents/MacOS/Earshot --subtitles some-recording.wav kyutai
 ```
+
+## Earshot for Windows
+
+A separate app in the same repository (`windows/`, C# and .NET 8), with the Mac's after-the-call pipeline: record the call, then get the transcript on the PC, each voice told apart. Sessions and transcripts use the same folders and formats as on the Mac.
+
+[![Windows](https://github.com/Bouliw/earshot/actions/workflows/windows.yml/badge.svg)](https://github.com/Bouliw/earshot/actions/workflows/windows.yml)
+
+### Download and run
+
+1. Download the zip for your PC: [`Earshot-Windows-x64.zip`](https://github.com/Bouliw/earshot/releases/latest/download/Earshot-Windows-x64.zip) (Intel and AMD) or [`Earshot-Windows-arm64.zip`](https://github.com/Bouliw/earshot/releases/latest/download/Earshot-Windows-arm64.zip) (Snapdragon and other Arm PCs). **Settings › System › About › System type** tells which one you have.
+2. Extract it anywhere and open `Earshot.exe` in the `Earshot` folder. It is not signed, so the first time SmartScreen may show "Windows protected your PC": click **More info**, then **Run anyway**.
+3. Type a title for the session (or keep the suggested "Call" and the date), pick the microphone, click **Record**. Click **Stop** when the call is over: the transcript is written on the PC, and appears in the window when it is done.
+
+### Requirements
+
+- Windows 10 (1809 or later) or Windows 11, 64-bit, on x64 or Arm64. Nothing else to install: .NET and the Visual C++ runtime are in the zip.
+- About 2 GB of disk for the default Whisper model (large-v3-turbo, 1.6 GB) and the voice models. Everything runs on the CPU: on a slower or Arm PC, a lighter model in Settings (Large v3 Turbo compact, Small, Base) gives the transcript sooner.
+
+### How it works
+
+- **Two tracks.** The PC's sound (whatever plays on the default output: Teams, Zoom, a browser…) is captured through WASAPI loopback, and the chosen microphone apart, both written to disk as they come. A session cut short (Earshot closed, PC shut down) is transcribed at the next launch.
+- **Only where someone speaks.** Silero's voice activity model keeps the stretches with a voice on each track, so breathing, typing and room noise never reach Whisper. Whisper ([whisper.cpp](https://github.com/ggml-org/whisper.cpp) through [Whisper.net](https://github.com/sandrohanea/whisper.net)) detects the language of each piece, as on the Mac.
+- **Each voice told apart.** On the PC's track, [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (pyannote segmentation and speaker embeddings) separates the voices: "Speaker 1", "Speaker 2"… Click a name to rename that speaker everywhere in the session; give two the same name to merge them. The microphone track is always you ("Me" by default, set in Settings), and is muted while the PC plays sound, so what comes out of laptop speakers is not transcribed twice.
+- **Files.** `Documents\Earshot\Calls\<title>\<date>\` holds `Audio.m4a` (AAC; `Audio.wav` on Windows editions without the AAC encoder), `Transcript.txt` and `.earshot.json`, as on the Mac.
+- **Models.** Downloaded the first time they are needed, with progress in the window, into `%LOCALAPPDATA%\Earshot\Models`; each file is checked against its expected size.
+- **Out of the way.** Closing the window keeps Earshot in the notification area (start or stop a recording from its icon, right-click to quit). The interface follows the language of Windows, English or French.
+
+### What differs from the Mac
+
+- After the call only: no live mode and no live subtitles.
+- No calendar: sessions are named after the title you type.
+- No Teams names: voices are numbered, to rename by hand.
+- The whole PC sound is recorded, not a single app: a notification or music playing during the call is in the recording too.
+- No file import, doc-indexer indexing or Markdown and subtitle export yet.
+
+### Build
+
+The .NET 8 SDK is enough. The solution also builds on macOS and Linux (the app itself only runs on Windows):
+
+```bash
+dotnet test windows/tests/Earshot.Core.Tests
+dotnet publish windows/src/Earshot.Windows -c Release -r win-x64 --self-contained -o out
+```
+
+To check the after-the-call pipeline on WAV files, on any system:
+
+```bash
+dotnet run --project windows/tools/Earshot.Check -- --check pc-sound.wav --mic microphone.wav
+```
+
+On Windows, `Earshot.exe --check recording.wav --out result.txt` does the same with the libraries of that install.
 
 ## License
 

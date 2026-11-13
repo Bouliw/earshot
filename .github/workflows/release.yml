@@ -1,6 +1,7 @@
 # Builds Earshot.dmg on a Mac when a version tag is pushed, then publishes the release with the DMG attached,
 # so the download link in the README never points to a release without its DMG. The release notes are the
-# message of the annotated tag.
+# message of the annotated tag. Earshot for Windows is then built and checked on Windows (x64 and arm64) and its
+# two zips are attached to the same release.
 name: Release
 
 on:
@@ -39,3 +40,30 @@ jobs:
           git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" build/Earshot.dmg --title "Earshot ${GITHUB_REF_NAME#v}" \
             --notes-file "$RUNNER_TEMP/notes.md" --latest --repo "$GITHUB_REPOSITORY"
+
+  # Earshot for Windows: the same build and checks as every push (windows.yml), once the release exists.
+  windows:
+    needs: dmg
+    uses: ./.github/workflows/windows.yml
+
+  windows-assets:
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version matches the tag
+        run: |
+          version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' windows/Directory.Build.props)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "windows/Directory.Build.props says $version, tag is $GITHUB_REF_NAME"; exit 1; }
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: Earshot-Windows-*
+          merge-multiple: true
+          path: dist
+      - name: Attach the Windows zips to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/Earshot-Windows-x64.zip dist/Earshot-Windows-arm64.zip --repo "$GITHUB_REPOSITORY"
