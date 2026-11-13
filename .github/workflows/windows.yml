@@ -1,0 +1,88 @@
+# Builds and tests Earshot for Windows on Windows, for x64 and arm64: unit tests, then a self-contained zip per
+# architecture, checked by running the published Earshot.exe on a short recording (its own whisper.cpp, Silero and
+# speaker models, on that machine) before it is kept as an artifact. The release workflow calls it to attach the zips.
+name: Windows
+
+on:
+  push:
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "windows/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73  # v6.1.0
+        with:
+          dotnet-version: "8.0.x"
+      - name: Restore
+        run: dotnet restore windows/Earshot.Windows.sln
+      - name: Build
+        run: dotnet build windows/Earshot.Windows.sln -c Release --no-restore
+      - name: Build the app for x64 and arm64
+        run: |
+          foreach ($rid in "win-x64", "win-arm64") {
+            dotnet build windows/src/Earshot.Windows/Earshot.Windows.csproj -c Release -r $rid
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - name: Unit tests
+        run: dotnet test windows/tests/Earshot.Core.Tests/Earshot.Core.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+      - name: Publish
+        run: dotnet publish windows/src/Earshot.Windows/Earshot.Windows.csproj -c Release -r win-${{ matrix.arch }} --self-contained -p:DebugType=none -o out/Earshot
+      - name: Add the Visual C++ runtime next to the app
+        # whisper.cpp needs it, and a fresh Windows does not always have it.
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\${{ matrix.arch }}\Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw "Visual C++ runtime for ${{ matrix.arch }} not found under $vs" }
+          Copy-Item "$($crt.FullName)\msvcp140.dll", "$($crt.FullName)\vcruntime140*.dll" out/Earshot/
+          Get-ChildItem out/Earshot -Filter *140*.dll | ForEach-Object { $_.Name }
+      - name: Cache the models
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: earshot-models-base-v1
+      - name: Check the published app on a recording
+        run: |
+          Invoke-WebRequest https://raw.githubusercontent.com/ggml-org/whisper.cpp/b0a11594aec50892a02cd8d129eee2dfe93a8bb8/samples/jfk.wav -OutFile jfk.wav
+          $arguments = "--check", "jfk.wav", "--model", "base", "--expect", "country", "--models", "${{ runner.temp }}\models", "--out", "check.txt"
+          $p = Start-Process -FilePath out/Earshot/Earshot.exe -ArgumentList $arguments -Wait -PassThru
+          if (Test-Path check.txt) { Get-Content check.txt }
+          if ($p.ExitCode -ne 0) { throw "Earshot --check failed with exit code $($p.ExitCode)" }
+      - name: Zip
+        run: Compress-Archive -Path out/Earshot -DestinationPath Earshot-Windows-${{ matrix.arch }}.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: Earshot-Windows-${{ matrix.arch }}
+          path: Earshot-Windows-${{ matrix.arch }}.zip
+          if-no-files-found: error

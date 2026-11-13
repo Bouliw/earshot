@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The models: Whisper (whisper.cpp through Whisper.net), Silero voice activity and speaker separation (sherpa-onnx),
+       and their first download. Not tied to Windows, so the whole pipeline can be checked anywhere. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Earshot.Engines</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Earshot.Core\Earshot.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="2.0.1" />
+  </ItemGroup>
+</Project>

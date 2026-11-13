@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the after-the-call pipeline on WAV files from a terminal, on any OS (see SelfCheck.Usage). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>earshot-check</AssemblyName>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Earshot.Engines\Earshot.Engines.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,46 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Earshot.Core", "src\Earshot.Core\Earshot.Core.csproj", "{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0001}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Earshot.Engines", "src\Earshot.Engines\Earshot.Engines.csproj", "{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0002}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Earshot.Windows", "src\Earshot.Windows\Earshot.Windows.csproj", "{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0003}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Earshot.Core.Tests", "tests\Earshot.Core.Tests\Earshot.Core.Tests.csproj", "{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0004}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Earshot.Check", "tools\Earshot.Check\Earshot.Check.csproj", "{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0005}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0001}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0002}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0003}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0003}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0004}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0004}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0005}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B1D3B52-1C5E-4F0A-9E3A-2A1B6F0C0005}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

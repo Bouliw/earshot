@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Windows app: capture (WASAPI through NAudio), the window and the notification area icon. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Earshot</AssemblyName>
+    <RootNamespace>Earshot.Desktop</RootNamespace>
+    <ApplicationIcon>Assets\earshot.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <SatelliteResourceLanguages>en;fr</SatelliteResourceLanguages>
+    <AssemblyTitle>Earshot</AssemblyTitle>
+    <Description>On-device transcription of calls and classes</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Earshot.Core\Earshot.Core.csproj" />
+    <ProjectReference Include="..\Earshot.Engines\Earshot.Engines.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\earshot.ico" />
+  </ItemGroup>
+  <!-- Whisper.net ships whisper.cpp for every platform; a published build keeps only its own. -->
+  <Target Name="KeepOnlyThisPlatform" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
+    <ItemGroup>
+      <OtherPlatform Include="linux-arm;linux-arm64;linux-x64;macos-arm64;macos-x64;win-x86;win-x64;win-arm64" Exclude="$(RuntimeIdentifier)" />
+    </ItemGroup>
+    <RemoveDir Directories="@(OtherPlatform->'$(PublishDir)runtimes\%(Identity)')" />
+    <Delete Files="$(PublishDir)ggml-metal.metal" />
+  </Target>
+</Project>

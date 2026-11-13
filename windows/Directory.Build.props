@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <Version>0.5.0</Version>
+    <Product>Earshot</Product>
+    <Copyright>MIT License</Copyright>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- The Windows app also builds on macOS and Linux (no run), which keeps the solution buildable everywhere. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>
