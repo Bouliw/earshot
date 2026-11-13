@@ -41,6 +41,22 @@ public static class ModelCatalog
     public static readonly ModelFile Embedding = new("speaker-embedding", "3D-Speaker ERes2Net", "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
         "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx", 39_593_761);
 
+    const string QwenBase = "https://huggingface.co/Qwen/";
+
+    /// <summary>Language models for the summary (Qwen3, Apache 2.0, in GGUF for llama.cpp), smallest first. Bigger
+    /// writes better summaries but takes longer on the CPU.</summary>
+    public static readonly IReadOnlyList<ModelFile> SummaryModels = new[]
+    {
+        new ModelFile("small", "Qwen3 1.7B", "Qwen3-1.7B-Q8_0.gguf", QwenBase + "Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q8_0.gguf", 1_834_426_016),
+        new ModelFile("medium", "Qwen3 4B", "Qwen3-4B-Q4_K_M.gguf", QwenBase + "Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf", 2_497_280_256),
+        new ModelFile("large", "Qwen3 8B", "Qwen3-8B-Q4_K_M.gguf", QwenBase + "Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf", 5_027_783_488),
+        new ModelFile("xlarge", "Qwen3 14B", "Qwen3-14B-Q4_K_M.gguf", QwenBase + "Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf", 9_001_752_960),
+    };
+
+    public const string DefaultSummary = "medium";
+
+    public static ModelFile SummaryModel(string? id) => SummaryModels.FirstOrDefault(m => m.Id == id) ?? SummaryModels[1];
+
     public static string PathOf(ModelFile model, string? folder = null) => System.IO.Path.Combine(folder ?? Folder, model.FileName);
 
     /// <summary>On disk and complete.</summary>

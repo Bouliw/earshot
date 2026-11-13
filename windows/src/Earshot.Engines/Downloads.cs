@@ -9,7 +9,7 @@ public static class ModelDownloader
     static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
     static readonly SemaphoreSlim OneAtATime = new(1, 1);
 
-    static ModelDownloader() => Http.DefaultRequestHeaders.UserAgent.ParseAdd("Earshot-Windows/0.5");
+    static ModelDownloader() => Http.DefaultRequestHeaders.UserAgent.ParseAdd("Earshot-Windows/0.6");
 
     /// <summary>The model's path once it is on disk. <paramref name="progress"/> gets bytes done and bytes in all.</summary>
     public static async Task<string> EnsureAsync(ModelFile model, Action<long, long>? progress = null, CancellationToken cancel = default, string? folder = null)

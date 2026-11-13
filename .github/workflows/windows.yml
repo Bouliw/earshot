@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ runner.temp }}/models
-          key: earshot-models-base-v1
+          key: earshot-models-base-qwen-small-v1
       - name: Check the published app on a recording
         run: |
           Invoke-WebRequest https://raw.githubusercontent.com/ggml-org/whisper.cpp/b0a11594aec50892a02cd8d129eee2dfe93a8bb8/samples/jfk.wav -OutFile jfk.wav
@@ -79,6 +79,29 @@ jobs:
           $p = Start-Process -FilePath out/Earshot/Earshot.exe -ArgumentList $arguments -Wait -PassThru
           if (Test-Path check.txt) { Get-Content check.txt }
           if ($p.ExitCode -ne 0) { throw "Earshot --check failed with exit code $($p.ExitCode)" }
+      - name: Check the summary on a sample session
+        # The smallest summary model, run by llama.cpp from the published app.
+        run: |
+          $session = Join-Path $env:RUNNER_TEMP "summary-session"
+          New-Item -ItemType Directory -Force $session | Out-Null
+          @'
+          {
+            "appName": "Windows", "bundleID": "windows.system-audio", "duration": 95, "id": "5C3A2E10-7B4D-4F2A-9E61-3D8C0A1B2F44",
+            "segments": [
+              { "end": 12, "id": "B1000000-0000-4000-8000-000000000001", "speaker": "Speaker 1", "start": 0, "text": "Thanks for joining. The goal today is to settle the launch plan for the beta. Engineering says the build is stable, so I would like to ship it to the first fifty customers next Monday." },
+              { "end": 24, "id": "B1000000-0000-4000-8000-000000000002", "mic": true, "speaker": "Me", "start": 13, "text": "That works for me. The release notes are almost done, I just need to add the part about the new export. I can send them to you on Friday morning." },
+              { "end": 38, "id": "B1000000-0000-4000-8000-000000000003", "speaker": "Speaker 2", "start": 25, "text": "Support needs a short guide before Monday, otherwise we will get the same questions fifty times. I will write it on Thursday and share it with the support team." },
+              { "end": 50, "id": "B1000000-0000-4000-8000-000000000004", "speaker": "Speaker 1", "start": 39, "text": "Perfect. So we agree: the beta ships Monday to fifty customers, release notes on Friday, the support guide on Thursday. Let's meet again on Tuesday to look at the first feedback." }
+            ],
+            "startedAt": "2026-11-13T09:00:00Z", "title": "Beta launch"
+          }
+          '@ | Set-Content -Encoding utf8 (Join-Path $session ".earshot.json")
+          $arguments = "--summarize", $session, "--summary", "small", "--models", "${{ runner.temp }}\models", "--out", "summary.txt"
+          $p = Start-Process -FilePath out/Earshot/Earshot.exe -ArgumentList $arguments -Wait -PassThru
+          if (Test-Path summary.txt) { Get-Content summary.txt }
+          if ($p.ExitCode -ne 0) { throw "Earshot --summarize failed with exit code $($p.ExitCode)" }
+          $text = Get-Content (Join-Path $session "Summary.txt") -Raw
+          if ($text -notmatch "Monday") { throw "The summary does not mention the launch day" }
       - name: Open the window
         # The window and its styles load, nothing is reported as an error, and a screenshot is kept to look at.
         run: |
@@ -95,6 +118,20 @@ jobs:
             "startedAt": "2026-11-13T09:00:00Z", "title": "Weekly sync"
           }
           '@ | Set-Content -Encoding utf8 (Join-Path $session ".earshot.json")
+          @'
+          Weekly sync — November 13, 2026 at 9:00 AM
+
+          Summary
+          The team set the date of the beta and who prepares what.
+
+          Key points
+          - The beta goes out on Monday.
+          - The release notes are almost done.
+
+          Action items
+          - Me: finish the release notes.
+          - Speaker 2: read the notes this afternoon.
+          '@ | Set-Content -Encoding utf8 (Join-Path $session "Summary.txt")
           $p = Start-Process -FilePath out/Earshot/Earshot.exe -PassThru
           Start-Sleep -Seconds 12
           $p.Refresh()

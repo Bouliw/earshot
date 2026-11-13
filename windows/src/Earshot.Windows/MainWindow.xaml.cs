@@ -85,6 +85,7 @@ public partial class MainWindow : Window
         SessionsLabel.Text = L.Sessions;
         FolderButton.Content = L.OpenFolder;
         RetryButton.Content = L.TranscribeAgain;
+        SummaryHeading.Text = L.SummaryTitle;
         RenameHint.Text = L.ClickToRename;
         TitleBox.ToolTip = L.TitlePlaceholder;
         TitleHint.Text = L.DefaultTitle(DateTime.Now);
@@ -169,6 +170,8 @@ public partial class MainWindow : Window
     string StatusOf(SessionRecord r)
     {
         if (app.RecordingFolder != null && SameFolder(r.Folder, app.RecordingFolder)) return L.Recording;
+        if (app.Queue.Current != null && SameFolder(r.Folder, app.Queue.Current) && app.Queue.CurrentProgress is { Stage: JobStage.Summarizing } s)
+            return Describe(s);
         if (r.Status == SessionRecord.Failed) return L.Failed(r.Failure ?? "");
         if (r.Status != SessionRecord.Pending) return "";
         if (app.Queue.Current != null && SameFolder(r.Folder, app.Queue.Current) && app.Queue.CurrentProgress is { } p) return Describe(p);
@@ -193,6 +196,10 @@ public partial class MainWindow : Window
             && File.Exists(Path.Combine(record.Folder, SessionStore.AppTrackName));
         RetryButton.Visibility = canRetry ? Visibility.Visible : Visibility.Collapsed;
         RenameHint.Visibility = record.Segments.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowSummary(Summary.Load(record.Folder));
+        var busy = record.Folder != null && app.Queue.Contains(record.Folder);
+        SummarizeButton.Content = Summary.Load(record.Folder) == null ? L.Summarize : L.SummarizeAgain;
+        SummarizeButton.Visibility = record.Segments.Count > 0 && record.Status == null && !busy ? Visibility.Visible : Visibility.Collapsed;
         var local = DateTime.SpecifyKind(record.StartedAt, DateTimeKind.Utc).ToLocalTime();
         TurnList.ItemsSource = Turn.Group(record.Segments).Select(t => new TurnItem
         {
@@ -201,6 +208,30 @@ public partial class MainWindow : Window
             Text = t.Text,
             Brush = SpeakerBrush(t.Speaker),
         }).ToList();
+    }
+
+    /// <summary>Summary.txt above the transcript, without its first line (the title and date are shown already), headings in bold.</summary>
+    void ShowSummary(string? text)
+    {
+        SummaryText.Inlines.Clear();
+        SummaryPanel.Visibility = text == null ? Visibility.Collapsed : Visibility.Visible;
+        if (text == null) return;
+        var lines = text.Replace("\r", "").Split('\n').Skip(1).SkipWhile(l => l.Length == 0).ToList();
+        while (lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            if (Summary.AllHeadings.Contains(line)) SummaryText.Inlines.Add(new System.Windows.Documents.Run(line) { FontWeight = FontWeights.SemiBold });
+            else SummaryText.Inlines.Add(new System.Windows.Documents.Run(line.StartsWith("- ") ? "•  " + line[2..] : line));
+            if (i < lines.Count - 1) SummaryText.Inlines.Add(new System.Windows.Documents.LineBreak());
+        }
+    }
+
+    void OnSummarize(object sender, RoutedEventArgs e)
+    {
+        if (shown?.Folder is not { } folder) return;
+        app.Queue.Enqueue(folder, summaryOnly: true);
+        SummarizeButton.Visibility = Visibility.Collapsed;
     }
 
     void OnTurnWheel(object sender, MouseWheelEventArgs e)
@@ -253,6 +284,7 @@ public partial class MainWindow : Window
     {
         JobStage.Downloading => L.Downloading(p.Detail.Split(" · ")[0], p.Detail.Contains(" · ") ? p.Detail.Split(" · ")[1] : $"{p.Fraction:P0}"),
         JobStage.Voices => L.TellingVoicesApart,
+        JobStage.Summarizing => L.Summarizing((int)Math.Round(p.Fraction * 100)),
         _ => L.Transcribing((int)Math.Round(p.Fraction * 100)),
     };
 
@@ -260,7 +292,7 @@ public partial class MainWindow : Window
     {
         JobPanel.Visibility = Visibility.Visible;
         JobTitle.Text = SessionStore.Load(folder)?.Title ?? Path.GetFileName(folder);
-        JobText.Text = app.Recorder.IsRecording && p.Stage == JobStage.Transcribing ? L.WaitingForRecording : Describe(p);
+        JobText.Text = app.Recorder.IsRecording && p.Stage is JobStage.Transcribing or JobStage.Summarizing ? L.WaitingForRecording : Describe(p);
         JobBar.Value = p.Fraction;
         if (shown != null && SameFolder(shown.Folder, folder)) DetailStatus.Text = JobText.Text;
     }

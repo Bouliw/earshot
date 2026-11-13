@@ -45,6 +45,19 @@ public partial class SettingsWindow : Window
         LanguageBox.ItemsSource = languages;
         LanguageBox.SelectedItem = languages.FirstOrDefault(l => l.Id == settings.Language) ?? languages[0];
 
+        SummarizeBox.Content = L.SummarizeCalls;
+        SummarizeHint.Text = L.SummarizeHint;
+        SummaryModelLabel.Text = L.SummaryModel;
+        SummaryModelHint.Text = L.SummaryModelHint;
+        SummarizeBox.IsChecked = settings.Summarize;
+        var summaryModels = ModelCatalog.SummaryModels.Select(m => new Choice(m.Id,
+            $"{L.SummarySize(m.Id)} · {m.Label} · {(ModelCatalog.IsReady(m) ? L.Downloaded : L.ToDownload(m.SizeText))}")).ToList();
+        SummaryModelBox.ItemsSource = summaryModels;
+        SummaryModelBox.SelectedItem = summaryModels.FirstOrDefault(m => m.Id == settings.SummaryModel) ?? summaryModels[1];
+        SummaryModelBox.IsEnabled = SummarizeBox.IsChecked == true;
+        SummarizeBox.Checked += (_, _) => SummaryModelBox.IsEnabled = true;
+        SummarizeBox.Unchecked += (_, _) => SummaryModelBox.IsEnabled = false;
+
         NameBox.Text = settings.EffectiveUserName;
         VoicesBox.IsChecked = settings.SeparateVoices;
         FolderText.Text = folder;
@@ -73,6 +86,8 @@ public partial class SettingsWindow : Window
         var name = NameBox.Text.Trim();
         settings.UserName = name == L.Me ? "" : name;
         settings.SeparateVoices = VoicesBox.IsChecked == true;
+        settings.Summarize = SummarizeBox.IsChecked == true;
+        settings.SummaryModel = (SummaryModelBox.SelectedItem as Choice)?.Id ?? ModelCatalog.DefaultSummary;
         settings.SessionsFolder = folder == SessionStore.DefaultBase ? "" : folder;
         DialogResult = true;
     }

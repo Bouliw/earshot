@@ -82,6 +82,27 @@ public static class L
     public static string TranscribeAgain => T("Transcribe again", "Retranscrire");
     public static string Done(string title) => T($"Transcript ready: {title}", $"Transcription prête : {title}");
     public static string NoAudioDevice => T("No sound output found on this PC.", "Aucune sortie son trouvée sur ce PC.");
+    public static string SummaryTitle => T("Summary", "Résumé");
+    public static string Summarize => T("Summarize", "Résumer");
+    public static string SummarizeAgain => T("Summarize again", "Résumer à nouveau");
+    public static string Summarizing(int percent) => T($"Summarizing… {percent}%", $"Résumé en cours… {percent} %");
+    public static string SummarizeCalls => T("Summarize each call automatically", "Résumer chaque appel automatiquement");
+    public static string SummarizeHint => T(
+        "Once the transcript is written, a language model on this PC writes a short summary in the language of the call: what it was about, the key points, the decisions and who does what. It goes in Summary.txt next to the transcript. Nothing leaves the PC.",
+        "Une fois la transcription écrite, un modèle de langage sur ce PC rédige un court résumé dans la langue de l'appel : le sujet, les points clés, les décisions et qui fait quoi. Il est enregistré dans Summary.txt à côté de la transcription. Rien ne quitte le PC.");
+    public static string SummaryModel => T("Summary model", "Modèle du résumé");
+    public static string SummaryModelHint => T(
+        "Downloaded the first time a summary is written. A bigger model writes better summaries but takes longer, and needs more memory.",
+        "Téléchargé au premier résumé. Un modèle plus gros écrit de meilleurs résumés mais prend plus de temps et demande plus de mémoire.");
+    public static string SummarySize(string id) => id switch
+    {
+        "small" => T("Small", "Petit"),
+        "large" => T("Large", "Gros"),
+        "xlarge" => T("Extra large", "Très gros"),
+        _ => T("Medium", "Moyen"),
+    };
+    public static string NoSummary => T("No summary for this session yet.", "Pas encore de résumé pour cette session.");
+
     public static string Minutes(double seconds)
     {
         var m = (int)(seconds / 60);

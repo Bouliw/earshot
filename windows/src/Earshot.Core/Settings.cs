@@ -17,6 +17,10 @@ public sealed class AppSettings
     /// <summary>Where sessions go; empty means Documents\Earshot\Calls.</summary>
     [JsonPropertyName("sessionsFolder")] public string SessionsFolder { get; set; } = "";
     [JsonPropertyName("toldAboutTray")] public bool ToldAboutTray { get; set; }
+    /// <summary>Summary.txt after each transcript: on unless turned off.</summary>
+    [JsonPropertyName("summarize")] public bool Summarize { get; set; } = true;
+    /// <summary>"small", "medium", "large" or "xlarge" (see ModelCatalog.SummaryModels).</summary>
+    [JsonPropertyName("summaryModel")] public string SummaryModel { get; set; } = ModelCatalog.DefaultSummary;
 
     [JsonIgnore] public string EffectiveUserName => string.IsNullOrWhiteSpace(UserName) ? L.Me : UserName.Trim();
     [JsonIgnore] public string EffectiveSessionsFolder => string.IsNullOrWhiteSpace(SessionsFolder) ? SessionStore.DefaultBase : SessionsFolder;

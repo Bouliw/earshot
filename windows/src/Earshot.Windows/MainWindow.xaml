@@ -91,6 +91,7 @@
                 <DockPanel DockPanel.Dock="Top">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,2,0,0">
                         <Button x:Name="RetryButton" Click="OnRetry" Visibility="Collapsed" Margin="0,0,8,0" Style="{StaticResource AccentButton}" />
+                        <Button x:Name="SummarizeButton" Click="OnSummarize" Visibility="Collapsed" Margin="0,0,8,0" />
                         <Button x:Name="FolderButton" Click="OnOpenFolder" />
                     </StackPanel>
                     <StackPanel>
@@ -102,6 +103,18 @@
                 <TextBlock x:Name="DetailStatus" DockPanel.Dock="Top" Margin="0,18,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" />
                 <TextBlock x:Name="RenameHint" DockPanel.Dock="Top" Style="{StaticResource Muted}" Margin="0,16,0,4" />
                 <ScrollViewer x:Name="TurnScroller" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0" PreviewMouseWheel="OnTurnWheel">
+                    <StackPanel>
+                    <Border x:Name="SummaryPanel" Visibility="Collapsed" Background="{StaticResource AccentSoftBrush}" CornerRadius="10"
+                            Padding="18,14" Margin="0,0,12,22">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE945;" Foreground="{StaticResource AccentBrush}"
+                                           VerticalAlignment="Center" FontSize="15" />
+                                <TextBlock x:Name="SummaryHeading" FontWeight="SemiBold" FontSize="15" Margin="8,0,0,0" Foreground="{StaticResource AccentBrush}" />
+                            </StackPanel>
+                            <TextBlock x:Name="SummaryText" TextWrapping="Wrap" FontSize="14" LineHeight="21" />
+                        </StackPanel>
+                    </Border>
                     <ItemsControl x:Name="TurnList" Margin="0,0,12,32">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -121,6 +134,7 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    </StackPanel>
                 </ScrollViewer>
             </DockPanel>
         </Grid>

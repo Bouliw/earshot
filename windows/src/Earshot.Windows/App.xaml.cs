@@ -32,7 +32,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (e.Args.Contains("--check"))
+        if (e.Args.Contains("--check") || e.Args.Contains("--summarize"))
         {
             RunCheck(e.Args);
             return;
@@ -56,6 +56,7 @@ public partial class App : Application
         Settings = AppSettings.Load();
         Queue = new TranscriptionQueue(() => Recorder.IsRecording, () => Settings);
         Queue.Progress += (folder, p) => Dispatcher.BeginInvoke(() => window?.OnJobProgress(folder, p));
+        Queue.Transcribed += (folder, _) => Dispatcher.BeginInvoke(() => window?.RefreshSessions());
         Queue.Finished += (folder, record, error) => Dispatcher.BeginInvoke(() =>
         {
             window?.OnJobFinished(folder);

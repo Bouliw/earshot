@@ -25,6 +25,12 @@
                 <CheckBox x:Name="VoicesBox" Margin="0,18,0,0" FontWeight="SemiBold" />
                 <TextBlock x:Name="VoicesHint" Style="{StaticResource Muted}" Margin="22,4,0,0" />
 
+                <CheckBox x:Name="SummarizeBox" Margin="0,18,0,0" FontWeight="SemiBold" />
+                <TextBlock x:Name="SummarizeHint" Style="{StaticResource Muted}" Margin="22,4,0,0" />
+                <TextBlock x:Name="SummaryModelLabel" Style="{StaticResource Label}" Margin="22,12,0,6" />
+                <ComboBox x:Name="SummaryModelBox" DisplayMemberPath="Text" Margin="22,0,0,0" />
+                <TextBlock x:Name="SummaryModelHint" Style="{StaticResource Muted}" Margin="22,6,0,0" />
+
                 <TextBlock x:Name="FolderLabel" Style="{StaticResource Label}" Margin="0,18,0,6" />
                 <DockPanel>
                     <Button x:Name="OpenButton" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpen" />

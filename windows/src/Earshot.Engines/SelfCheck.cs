@@ -9,7 +9,34 @@ public static class SelfCheck
 {
     public const string Usage =
         "--check <pc-sound.wav> [--mic <mic.wav>] [--model large-v3-turbo|large-v3-turbo-q5_0|small|base] " +
-        "[--models <folder>] [--language auto|en|fr] [--no-voices] [--expect <word>] [--out <file>]";
+        "[--models <folder>] [--language auto|en|fr] [--no-voices] [--expect <word>] [--summary small|medium|large|xlarge] [--out <file>]";
+
+    /// <summary>--summarize &lt;session folder&gt;: writes that session's Summary.txt with the given model and prints it.</summary>
+    static async Task<int> SummarizeAsync(string folder, string model, string? models, TextWriter log)
+    {
+        LlamaSummaryModel.Log = log.WriteLine;
+        log.WriteLine($"Runtime: {Environment.OSVersion} {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+        var started = DateTime.UtcNow;
+        var lastStage = (JobStage)(-1);
+        try
+        {
+            var written = await TranscriptionJob.SummarizeAsync(folder, new AppSettings { SummaryModel = model }, () => Task.CompletedTask, p =>
+            {
+                if (p.Stage != lastStage) { lastStage = p.Stage; log.WriteLine($"{p.Stage} {p.Detail}"); }
+            }, default, models);
+            log.WriteLine($"Took {(DateTime.UtcNow - started).TotalSeconds:0.0} s");
+            var text = Summary.Load(folder);
+            if (!written || string.IsNullOrWhiteSpace(text)) { log.WriteLine("FAIL: no summary"); return 1; }
+            log.WriteLine(text);
+            log.WriteLine("OK");
+            return 0;
+        }
+        catch (Exception error)
+        {
+            log.WriteLine("FAIL: " + error);
+            return 1;
+        }
+    }
 
     public static async Task<int> RunAsync(string[] args, TextWriter log)
     {
@@ -18,6 +45,8 @@ public static class SelfCheck
             var i = Array.IndexOf(args, name);
             return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
         }
+        if (Array.IndexOf(args, "--summarize") is var s and >= 0 && s + 1 < args.Length)
+            return await SummarizeAsync(args[s + 1], Option("--summary") ?? "small", Option("--models"), log);
         var first = Array.IndexOf(args, "--check");
         var appWav = first >= 0 && first + 1 < args.Length ? args[first + 1] : null;
         if (appWav is null || !File.Exists(appWav))
@@ -30,6 +59,8 @@ public static class SelfCheck
             Model = Option("--model") ?? "base",
             Language = Option("--language") ?? "auto",
             SeparateVoices = !args.Contains("--no-voices"),
+            Summarize = Option("--summary") != null,
+            SummaryModel = Option("--summary") ?? ModelCatalog.DefaultSummary,
         };
         var root = Path.Combine(Path.GetTempPath(), "earshot-check-" + Guid.NewGuid().ToString("N")[..8]);
         var folder = SessionStore.NewFolder(root, "Check", DateTime.Now);
@@ -57,6 +88,12 @@ public static class SelfCheck
             {
                 log.WriteLine($"FAIL: \"{word}\" not in the transcript");
                 return 1;
+            }
+            if (settings.Summarize)
+            {
+                var summary = Summary.Load(folder);
+                if (string.IsNullOrWhiteSpace(summary)) { log.WriteLine("FAIL: no summary"); return 1; }
+                log.WriteLine(summary);
             }
             log.WriteLine("OK");
             return 0;

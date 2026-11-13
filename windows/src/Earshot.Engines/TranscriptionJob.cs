@@ -22,14 +22,15 @@ public sealed class WaveEncoder : IAudioEncoder
 /// <summary>Where a job stands, for the window and the notification area.</summary>
 public sealed record JobProgress(JobStage Stage, double Fraction, string Detail = "");
 
-public enum JobStage { Downloading, Voices, Transcribing, Done }
+public enum JobStage { Downloading, Voices, Transcribing, Summarizing, Done }
 
 /// <summary>Everything that happens to a session once the recording stops: the audio file, the models, the transcript,
 /// then the raw tracks are dropped. A failure leaves the tracks in place and marks the session "failed".</summary>
 public static class TranscriptionJob
 {
     public static async Task<SessionRecord> RunAsync(string folder, AppSettings settings, IAudioEncoder encoder,
-        Func<Task> pause, Action<JobProgress> report, CancellationToken cancel = default, string? modelsFolder = null)
+        Func<Task> pause, Action<JobProgress> report, CancellationToken cancel = default, string? modelsFolder = null,
+        Action<SessionRecord>? transcribed = null)
     {
         var record = SessionStore.Load(folder) ?? throw new FileNotFoundException("Missing session file", Path.Combine(folder, SessionStore.RecordName));
         var appPath = Path.Combine(folder, SessionStore.AppTrackName);
@@ -90,6 +91,8 @@ public static class TranscriptionJob
             SessionStore.Write(record, folder);
             TryDelete(appPath);
             TryDelete(micPath);
+            transcribed?.Invoke(record);
+            if (settings.Summarize) await SummarizeAsync(folder, settings, pause, report, cancel, modelsFolder);
             report(new JobProgress(JobStage.Done, 1));
             return record;
         }
@@ -104,6 +107,38 @@ public static class TranscriptionJob
             SessionStore.Write(record, folder);
             throw;
         }
+    }
+
+    /// <summary>Summary.txt for a session that has its transcript, with the summary model chosen in Settings. A failure
+    /// leaves the transcript as it is (and an older summary in place): the summary is a bonus. Returns whether one was written.</summary>
+    public static async Task<bool> SummarizeAsync(string folder, AppSettings settings, Func<Task> pause, Action<JobProgress> report,
+        CancellationToken cancel = default, string? modelsFolder = null)
+    {
+        var record = SessionStore.Load(folder);
+        if (record == null || Summary.WordCount(record.Segments) < Summary.MinimumWords) return false;
+        try
+        {
+            var model = ModelCatalog.SummaryModel(settings.SummaryModel);
+            var path = await ModelDownloader.EnsureAsync(model,
+                (d, t) => report(new JobProgress(JobStage.Downloading, t > 0 ? d / (double)t : 0, model.Label + " · " + ModelDownloader.Bytes(d, t))), cancel, modelsFolder);
+            await pause();
+            report(new JobProgress(JobStage.Summarizing, 0));
+            var text = await Task.Run(() =>
+            {
+                var llm = LlamaSummaryModel.Cached(path);
+                return Summary.Write(record, llm, LlamaSummaryModel.BlockWords, p => report(new JobProgress(JobStage.Summarizing, p)), cancel);
+            }, cancel);
+            if (text == null) return false;
+            File.WriteAllText(Path.Combine(folder, Summary.FileName), text, new System.Text.UTF8Encoding(false));
+            return true;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error)
+        {
+            LlamaSummaryModel.Log?.Invoke("summary: " + error);
+            return false;
+        }
+        finally { LlamaSummaryModel.Release(); }  // several GB: freed until the next summary
     }
 
     /// <summary>Audio.m4a (or Audio.wav) from the session's two raw tracks, right when the recording stops, so the sound
