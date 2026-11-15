@@ -1,23 +1,18 @@
-# Code scanning with CodeQL for the workflows, the Python helper and the Swift app. The Swift code is built by hand
-# on macOS 26, the same runner as the tests: the package needs Swift 6.2 and the macOS 26 SDK, which the default
-# setup's macOS runner does not have, so its automatic build never finished. Traced by CodeQL, the build compiles
-# FluidAudio again file by file and takes 30 to 50 minutes, so the scan runs only when the code it covers changes,
-# plus once a week.
+# Code scanning with CodeQL. The workflows and the Python helper are scanned on every change, in about a minute.
+# The Swift app is scanned once a week and on demand: traced by CodeQL, its build compiles FluidAudio again file by
+# file and takes from 20 minutes to well over an hour on a hosted Mac, too long and too uneven to wait for on each
+# push. It runs on macOS 26, like the tests, because the package needs Swift 6.2 and the macOS 26 SDK.
 name: CodeQL
 
 on:
   push:
     branches: [main]
     paths:
-      - "Sources/**"
-      - "Package.swift"
       - "Resources/*.py"
       - ".github/workflows/**"
   pull_request:
     branches: [main]
     paths:
-      - "Sources/**"
-      - "Package.swift"
       - "Resources/*.py"
       - ".github/workflows/**"
   schedule:
@@ -30,8 +25,8 @@ permissions:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
@@ -39,16 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - language: actions
-            build-mode: none
-            runner: ubuntu-latest
-          - language: python
-            build-mode: none
-            runner: ubuntu-latest
-          - language: swift
-            build-mode: manual
-            runner: macos-26
+        language: [actions, python]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -56,10 +42,30 @@ jobs:
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-      - name: Build the Swift package
-        if: matrix.language == 'swift'
-        run: swift build
+          build-mode: none
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           category: "/language:${{ matrix.language }}"
+
+  swift:
+    name: Analyze (swift)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 240
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
+        with:
+          languages: swift
+          build-mode: manual
+      - name: Build the Swift package
+        run: swift build
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
+        with:
+          category: "/language:swift"
