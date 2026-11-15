@@ -1,15 +1,28 @@
 # Code scanning with CodeQL for the workflows, the Python helper and the Swift app. The Swift code is built by hand
 # on macOS 26, the same runner as the tests: the package needs Swift 6.2 and the macOS 26 SDK, which the default
-# setup's macOS runner does not have, so its automatic build never finished.
+# setup's macOS runner does not have, so its automatic build never finished. Traced by CodeQL, the build compiles
+# FluidAudio again file by file and takes 30 to 50 minutes, so the scan runs only when the code it covers changes,
+# plus once a week.
 name: CodeQL
 
 on:
   push:
     branches: [main]
+    paths:
+      - "Sources/**"
+      - "Package.swift"
+      - "Resources/*.py"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
+    paths:
+      - "Sources/**"
+      - "Package.swift"
+      - "Resources/*.py"
+      - ".github/workflows/**"
   schedule:
     - cron: "27 4 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,7 +31,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 90
     permissions:
       actions: read
       contents: read
@@ -40,20 +53,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # The dependencies (FluidAudio) are built before CodeQL starts watching: traced, their build could take the
-      # runner past its memory and stall for the whole timeout. Only Earshot's own code is then rebuilt and scanned.
-      - name: Build the dependencies
-        if: matrix.language == 'swift'
-        run: swift build
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-      - name: Build Earshot's code for the scan
+      - name: Build the Swift package
         if: matrix.language == 'swift'
-        run: |
-          touch Sources/Earshot/*.swift
-          swift build
+        run: swift build
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           category: "/language:${{ matrix.language }}"
