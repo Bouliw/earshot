@@ -274,10 +274,12 @@ public partial class MainWindow : Window
     void OnSettings(object sender, RoutedEventArgs e)
     {
         var language = app.Settings.InterfaceLanguage;
+        var checkUpdates = app.Settings.CheckUpdates;
         var dialog = new SettingsWindow(app.Settings) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         app.SaveSettings();
         if (app.Settings.InterfaceLanguage != language) app.ApplyLanguage();
+        if (app.Settings.CheckUpdates != checkUpdates) app.OnCheckUpdatesChanged();
         RefreshSessions();
     }
 

@@ -61,6 +61,7 @@ enum SelfTest {
             precondition(String(localized: "High subtitles stopped: \(name)", bundle: fr) == "Les sous-titres Élevé se sont arrêtés : Teams")
             precondition(String(localized: "Speaker \(2)", bundle: fr) == "Intervenant 2")
             precondition(String(localized: "Rename \(name)", bundle: fr) == "Renommer Teams")
+            precondition(String(localized: "Earshot \(name) is available", bundle: fr) == "Earshot Teams est disponible")
             precondition(String(localized: "Transcribing · \(3) waiting", bundle: fr) == "Transcription · 3 en attente")
             precondition(String(localized: "\(name) has no sound Earshot can read.", bundle: fr) == "Teams n'a pas de son qu'Earshot peut lire.")
             precondition(String(localized: "Indexed: \(name) · \(3) files", bundle: fr) == "Indexé : Teams · 3 fichiers")

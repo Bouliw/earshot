@@ -20,6 +20,7 @@ enum Pref {
     static let indexTranscripts = "indexTranscripts"
     static let indexer = "docIndexerScript"   // path to doc-indexer's extract_texts.py ("": found by itself)
     static let indexFolder = "indexFolder"    // "": the folder sessions are saved to
+    static let checkUpdates = "checkUpdates"  // asks GitHub once a day for a newer release (on unless turned off)
     /// Not in Settings: keeps each session's two hidden tracks (.app.pcm, .mic.pcm) once the transcript is done, to
     /// look into how the microphone was cleaned (`defaults write io.github.bouliw.Earshot keepTracks -bool true`).
     static let keepTracks = "keepTracks"

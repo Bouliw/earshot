@@ -89,6 +89,7 @@ private struct MenuBarLabel: View {
 final class AppState {
     let recorder = Recorder()
     let queue = TranscriptionQueue()
+    let updates = UpdateCheck()
     var apps: [AudioApp] = []
     var event: (title: String, end: Date)?
     var library: [SessionRecord] = []
@@ -111,6 +112,7 @@ final class AppState {
             if let record = SessionStore.load(folder) { recorder.refresh(record) }
         }
         if demo { Demo.fill(self) } else {
+            Task { [updates] in await updates.run() }
             reloadLibrary()
             // Sessions left waiting when Earshot quit pick up where they were. A recording cut short (forced quit,
             // crash) still has its raw sound: it is saved as Audio.m4a, then transcribed if it had no text yet.

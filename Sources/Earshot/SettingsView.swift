@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage(Pref.indexTranscripts) private var indexTranscripts = false
     @AppStorage(Pref.indexer) private var indexer = ""
     @AppStorage(Pref.indexFolder) private var indexFolder = ""
+    @AppStorage(Pref.checkUpdates) private var checkUpdates = true
     @ViewState private var trusted = TeamsCaptions.isTrusted
     @ViewState private var openAtLogin = SMAppService.mainApp.status == .enabled
     private let models = WhisperModel.installed()
@@ -39,6 +40,12 @@ struct SettingsView: View {
                         } catch {
                             openAtLogin = SMAppService.mainApp.status == .enabled
                         }
+                    }
+                Toggle("Check for new versions", isOn: $checkUpdates)
+                    .toggleStyle(.checkbox)
+                    .help("Once a day, Earshot asks GitHub for the number of the latest version. Nothing else is sent.")
+                    .onChange(of: checkUpdates) { _, on in
+                        if on { Task { await state.updates.check() } } else { state.updates.clear() }
                     }
                 Picker("App language", selection: $interfaceLanguage) {
                     Text("System").tag("system")

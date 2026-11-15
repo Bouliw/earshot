@@ -205,3 +205,7 @@
 "Relaunch now" = "Relancer maintenant";
 "Earshot relaunches in this language." = "Earshot se relance dans cette langue.";
 "Earshot can relaunch in this language once the recording and the transcripts are done." = "Earshot pourra se relancer dans cette langue une fois l'enregistrement et les transcriptions terminés.";
+"Check for new versions" = "Vérifier les nouvelles versions";
+"Once a day, Earshot asks GitHub for the number of the latest version. Nothing else is sent." = "Une fois par jour, Earshot demande à GitHub le numéro de la dernière version. Rien d'autre n'est envoyé.";
+"Earshot %@ is available" = "Earshot %@ est disponible";
+"Open the release page on GitHub" = "Ouvrir la page de la version sur GitHub";

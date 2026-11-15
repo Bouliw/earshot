@@ -64,6 +64,10 @@ public partial class SettingsWindow : Window
         SummarizeBox.Checked += (_, _) => SummaryModelBox.IsEnabled = true;
         SummarizeBox.Unchecked += (_, _) => SummaryModelBox.IsEnabled = false;
 
+        UpdatesBox.Content = L.CheckUpdates;
+        UpdatesHint.Text = L.CheckUpdatesHint;
+        UpdatesBox.IsChecked = settings.CheckUpdates;
+
         NameBox.Text = settings.EffectiveUserName;
         VoicesBox.IsChecked = settings.SeparateVoices;
         FolderText.Text = folder;
@@ -96,6 +100,7 @@ public partial class SettingsWindow : Window
         settings.Summarize = SummarizeBox.IsChecked == true;
         settings.SummaryModel = (SummaryModelBox.SelectedItem as Choice)?.Id ?? ModelCatalog.DefaultSummary;
         settings.SessionsFolder = folder == SessionStore.DefaultBase ? "" : folder;
+        settings.CheckUpdates = UpdatesBox.IsChecked == true;
         DialogResult = true;
     }
 }

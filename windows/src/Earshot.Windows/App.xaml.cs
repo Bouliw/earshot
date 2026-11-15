@@ -69,6 +69,31 @@ public partial class App : Application
         tray = new Tray(this);
         window.Show();
         ResumePending();
+        _ = CheckForUpdates();
+    }
+
+    /// <summary>At launch, then every 24 hours: a newer release shows in the tray menu, with a notice the first time
+    /// it is seen. Nothing happens when the check is off, offline, or when this copy is the latest.</summary>
+    async Task CheckForUpdates()
+    {
+        string? told = null;
+        while (!quitting)
+        {
+            if (Settings.CheckUpdates && await Updates.NewerVersionAsync() is { } version)
+            {
+                tray?.ShowUpdate(version);
+                if (version != told) tray?.Notify(L.UpdateAvailable(version), Updates.ReleasesPage);
+                told = version;
+            }
+            await Task.Delay(TimeSpan.FromDays(1));
+        }
+    }
+
+    /// <summary>"Check for new versions" was ticked or unticked in Settings.</summary>
+    public async void OnCheckUpdatesChanged()
+    {
+        if (!Settings.CheckUpdates) { tray?.ShowUpdate(null); return; }
+        if (await Updates.NewerVersionAsync() is { } version) tray?.ShowUpdate(version);
     }
 
     /// <summary>Sessions left waiting (Earshot quit or the PC stopped before their transcript): written now.</summary>

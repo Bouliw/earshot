@@ -23,6 +23,8 @@ public sealed class AppSettings
     [JsonPropertyName("summarize")] public bool Summarize { get; set; } = true;
     /// <summary>"small", "medium", "large" or "xlarge" (see ModelCatalog.SummaryModels).</summary>
     [JsonPropertyName("summaryModel")] public string SummaryModel { get; set; } = ModelCatalog.DefaultSummary;
+    /// <summary>Asks GitHub once a day whether a newer release is out: on unless turned off.</summary>
+    [JsonPropertyName("checkUpdates")] public bool CheckUpdates { get; set; } = true;
 
     [JsonIgnore] public string EffectiveUserName => string.IsNullOrWhiteSpace(UserName) ? L.Me : UserName.Trim();
     [JsonIgnore] public string EffectiveSessionsFolder => string.IsNullOrWhiteSpace(SessionsFolder) ? SessionStore.DefaultBase : SessionsFolder;

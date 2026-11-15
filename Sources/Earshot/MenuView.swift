@@ -37,6 +37,7 @@ struct MenuView: View {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
+            if let version = state.updates.available { UpdateCard(version: version) }
             footer
         }
         .padding(16)
@@ -313,6 +314,23 @@ private struct FileRow: View {
         }
         .buttonStyle(.plain)
         .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hover = h } }
+    }
+}
+
+/// A newer release is out on GitHub: one click opens its page, where the new version is downloaded.
+private struct UpdateCard: View {
+    let version: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle.fill").foregroundStyle(.tint)
+            Text("Earshot \(version) is available").font(.callout.weight(.medium)).lineLimit(1)
+            Spacer(minLength: 4)
+            PillButton("Download", icon: "arrow.up.right") { NSWorkspace.shared.open(UpdateCheck.releasesPage) }
+                .help("Open the release page on GitHub")
+        }
+        .padding(12)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16))
     }
 }
 

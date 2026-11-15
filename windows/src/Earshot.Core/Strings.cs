@@ -114,6 +114,14 @@ public static class L
         _ => T("Medium", "Moyen"),
     };
     public static string NoSummary => T("No summary for this session yet.", "Pas encore de résumé pour cette session.");
+    public static string CheckUpdates => T("Check for new versions", "Vérifier les nouvelles versions");
+    public static string CheckUpdatesHint => T(
+        "Once a day, Earshot asks GitHub for the number of the latest version. Nothing else is sent.",
+        "Une fois par jour, Earshot demande à GitHub le numéro de la dernière version. Rien d'autre n'est envoyé.");
+    public static string UpdateAvailable(string version) => T(
+        $"Earshot {version} is available. Click to download it.",
+        $"Earshot {version} est disponible. Cliquez pour le télécharger.");
+    public static string DownloadVersion(string version) => T($"Download Earshot {version}", $"Télécharger Earshot {version}");
 
     public static string Minutes(double seconds)
     {

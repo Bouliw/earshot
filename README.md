@@ -63,6 +63,8 @@ Pick an app from the menu bar (Teams, Zoom, Chrome, Discord…) and everything i
 
    From then on it opens normally. Earshot lives in the menu bar (an ear icon), not in the Dock.
 
+When a newer version is out, Earshot says so in its menu, with a link to the release. It asks GitHub for the latest version number once a day and sends nothing else; untick **Check for new versions** in Settings to turn it off. On Windows, the new version shows in the notification area menu.
+
 ### Permissions
 
 macOS asks for each permission the first time Earshot needs it:
