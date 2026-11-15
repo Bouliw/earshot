@@ -1,7 +1,8 @@
 # Code scanning with CodeQL. The workflows and the Python helper are scanned on every change, in about a minute.
 # The Swift app is scanned once a week and on demand: traced by CodeQL, its build compiles FluidAudio again file by
-# file and takes from 20 minutes to well over an hour on a hosted Mac, too long and too uneven to wait for on each
-# push. It runs on macOS 26, like the tests, because the package needs Swift 6.2 and the macOS 26 SDK.
+# file, slowly and with a lot of memory. With the usual parallel jobs a hosted Mac can run out of memory and drop
+# off after an hour or more, so the scan compiles one file at a time and is given up to four hours. It runs on
+# macOS 26, like the tests, because the package needs Swift 6.2 and the macOS 26 SDK.
 name: CodeQL
 
 on:
@@ -64,8 +65,8 @@ jobs:
         with:
           languages: swift
           build-mode: manual
-      - name: Build the Swift package
-        run: swift build
+      - name: Build the Swift package, one job at a time
+        run: swift build --jobs 1
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           category: "/language:swift"
