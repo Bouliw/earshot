@@ -3,6 +3,15 @@ import Testing
 @testable import Earshot
 
 @Suite struct AudioTests {
+    /// The call is not over while the user is still talking, even when the app has gone quiet.
+    @Test func theMicrophoneTellsWhenTheUserIsTalking() {
+        let mix = MicMix()
+        mix.addMic([Float](repeating: 0.001, count: 1_600))  // room noise
+        #expect(mix.lastVoice == .distantPast)
+        mix.addMic((0..<1_600).map { 0.1 * sin(Float($0) * 0.2) })
+        #expect(Date().timeIntervalSince(mix.lastVoice) < 1)
+    }
+
     @Test func theMicrophoneGoesOnTheAppsClockAndNeverLagsByMoreThanASecond() {
         let mix = MicMix()
         mix.addMic([Float](repeating: 0.1, count: 20_000))

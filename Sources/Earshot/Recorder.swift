@@ -126,7 +126,10 @@ final class Recorder {
             return
         }
         error = nil
-        let event = await CalendarLookup.currentEvent(for: app)
+        // A Phone or FaceTime call is rarely on the calendar: whatever is there at that time (a to-do, a reminder)
+        // is only taken if it says it is a call.
+        let found = await CalendarLookup.currentEvent(for: app)
+        let event = app.playsThroughSystem && !(found.map { CalendarLookup.namesACall($0.title) } ?? false) ? nil : found
         let isClass = event?.isClass ?? false
         let group = event.map { isClass ? CalendarLookup.courseName($0.title) : $0.title } ?? app.name
         let folder = SessionStore.newFolder(base: Pref.base(forClass: isClass, defaults: defaults), group: group)
@@ -134,7 +137,7 @@ final class Recorder {
         let mode = TranscriptionMode.current
         self.mode = mode
         self.app = app
-        title = event?.title ?? String(localized: "\(app.name) call")
+        title = event?.title ?? (app.bundleID == "com.apple.mobilephone" ? String(localized: "Phone call") : String(localized: "\(app.name) call"))
         eventEnd = event?.end
         self.isClass = isClass
         startedAt = Date()
@@ -164,7 +167,7 @@ final class Recorder {
                 micTrack = try RawTrack(folder.appending(path: SessionStore.micTrackName))
             }
             let audio = audioTrack, appOnly = appTrack, micOnly = micTrack, sink = subtitleSink, live = appSlot, liveMic = micSlot, mixer = mix
-            tap = try AudioTap(processes: app.processes) { samples in
+            tap = try AudioTap(processes: app.processes, everything: app.playsThroughSystem) { samples in
                 live.append(samples)
                 meter.append(samples)
                 sink.append(samples)
@@ -383,12 +386,14 @@ final class Recorder {
 
     /// Stops when the app quits, or when it has been silent for a while: for a class, once its calendar event
     /// is over (Teams keeps its audio running for the whole call, so a break does not count as silence);
-    /// for a call, as soon as the app goes quiet, which is when the other side hangs up.
+    /// for a call, as soon as the app goes quiet, which is when the other side hangs up. Not while the user is still
+    /// talking into the microphone, though: the app can fall silent mid-call (a Phone call moving to a system service).
     private func check() {
         guard state == .recording, let app else { return }
         guard let fresh = app.refreshed() else { stop(); return }
         if fresh.processes != self.app?.processes { tap?.update(processes: fresh.processes); self.app = fresh }
         if fresh.isPlaying { lastSound = Date() }
+        if let mixer, Date().timeIntervalSince(mixer.lastVoice) < 10 { lastSound = Date() }
         let quiet = Date().timeIntervalSince(lastSound)
         if isClass, let end = eventEnd { if Date() > end && quiet > 120 { stop() } } else if quiet > 120 { stop() }
         if captions == nil, needsAccessibility, TeamsCaptions.isTrusted { startCaptions(pid: app.pid) }
@@ -497,6 +502,12 @@ enum CalendarLookup {
             return callApp(in: e.title + "\n" + e.details) == recording ? 1 : 0
         }
         return candidates.max { a, b in (score(a), a.isClass ? 1 : 0, a.start) < (score(b), b.isClass ? 1 : 0, b.start) }
+    }
+
+    /// Whether an event is a call: what a Phone or FaceTime recording is filed under.
+    static func namesACall(_ title: String) -> Bool {
+        let t = title.lowercased()
+        return ["appel", "call", "téléphone", "telephone", "phone", "facetime", "entretien", "interview", "visio"].contains { t.contains($0) }
     }
 
     /// Classes are filed by school: "GEM : Course - Session 3". A call ("Nordine (Datadog) : call") is not.

@@ -43,6 +43,14 @@ import Testing
         #expect(CalendarLookup.pick([todo, past], app: nil, now: now) == nil)
     }
 
+    @Test func aPhoneCallIsOnlyFiledUnderAnEventThatSaysItIsACall() {
+        #expect(!CalendarLookup.namesACall("Auto · Bell Canada graduate : candidature (clôture 17/11)"))
+        #expect(CalendarLookup.namesACall("Appeler Papa"))
+        #expect(CalendarLookup.namesACall("Nordine Dani (Datadog, Dublin) : call to set up"))
+        #expect(CalendarLookup.namesACall("Entretien RH"))
+        #expect(AudioApp.callServices["com.apple.mobilephone"] != nil)
+    }
+
     @Test func classesAreTheEventsFiledBySchool() {
         #expect(CalendarLookup.isClass("GEM : Real World Content Marketing - Session 2"))
         #expect(CalendarLookup.isClass("SCHOOL : Content Strategy - Session 2"))

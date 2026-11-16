@@ -51,16 +51,30 @@ struct AudioApp: Identifiable, Hashable {
     var isPlaying: Bool
     var id: pid_t { pid }
 
+    /// Phone and FaceTime do not play a call themselves: system services do (a call relayed from the iPhone,
+    /// FaceTime audio), so the app only made a sound while the call was connecting.
+    static let callServices: [String: Set<String>] = [
+        "com.apple.mobilephone": ["com.apple.avconferenced", "com.apple.TelephonyUtilities"],
+        "com.apple.FaceTime": ["com.apple.avconferenced", "com.apple.TelephonyUtilities"],
+    ]
+
+    /// A call app whose sound comes from system services: recorded from everything the Mac plays.
+    var playsThroughSystem: Bool { AudioApp.callServices[bundleID] != nil }
+
     /// Every regular app that owns at least one Core Audio process, playing ones first.
     static func all() -> [AudioApp] {
         var apps: [pid_t: AudioApp] = [:]
+        var services: [(bundleID: String, object: AudioObjectID, playing: Bool)] = []
+        let serviceIDs = Set(callServices.values.joined())
         for object in audioProcessObjects() {
             let pid: pid_t = scalarProperty(object, kAudioProcessPropertyPID, 0)
+            let bundleID = stringProperty(object, kAudioProcessPropertyBundleID)
             // Command-line tools (no bundle ID) would show up as their terminal; skip them.
-            guard pid > 0, pid != getpid(), !stringProperty(object, kAudioProcessPropertyBundleID).isEmpty else { continue }
+            guard pid > 0, pid != getpid(), !bundleID.isEmpty else { continue }
+            let playing = scalarProperty(object, kAudioProcessPropertyIsRunningOutput, UInt32(0)) != 0
+            if serviceIDs.contains(bundleID) { services.append((bundleID, object, playing)); continue }
             let owner = NSRunningApplication(processIdentifier: responsiblePID(pid)) ?? NSRunningApplication(processIdentifier: pid)
             guard let owner, owner.activationPolicy == .regular, owner.processIdentifier != getpid() else { continue }
-            let playing = scalarProperty(object, kAudioProcessPropertyIsRunningOutput, UInt32(0)) != 0
             if apps[owner.processIdentifier] == nil {
                 apps[owner.processIdentifier] = AudioApp(
                     pid: owner.processIdentifier,
@@ -71,6 +85,14 @@ struct AudioApp: Identifiable, Hashable {
             }
             apps[owner.processIdentifier]!.processes.append(object)
             apps[owner.processIdentifier]!.isPlaying = apps[owner.processIdentifier]!.isPlaying || playing
+        }
+        // A call in Phone or FaceTime is playing while its services are.
+        for (pid, app) in apps {
+            guard let wanted = callServices[app.bundleID] else { continue }
+            for service in services where wanted.contains(service.bundleID) {
+                apps[pid]!.processes.append(service.object)
+                apps[pid]!.isPlaying = apps[pid]!.isPlaying || service.playing
+            }
         }
         return apps.values.sorted { ($0.isPlaying ? 0 : 1, $0.name) < ($1.isPlaying ? 0 : 1, $1.name) }
     }
@@ -88,6 +110,8 @@ final class AudioTap {
     private var aggregateID = AudioObjectID(kAudioObjectUnknown)
     private var procID: AudioDeviceIOProcID?
     private let description: CATapDescription
+    /// Taps everything the Mac plays rather than a list of processes.
+    private let global: Bool
     private let queue = DispatchQueue(label: "earshot.audio")
 
     enum Failure: LocalizedError {
@@ -99,8 +123,10 @@ final class AudioTap {
         }
     }
 
-    init(processes: [AudioObjectID], onSamples: @escaping ([Float]) -> Void) throws {
-        description = CATapDescription(monoMixdownOfProcesses: processes)
+    /// `everything`: for a call played by system services (Phone, FaceTime), whichever service it is.
+    init(processes: [AudioObjectID], everything: Bool = false, onSamples: @escaping ([Float]) -> Void) throws {
+        global = everything
+        description = everything ? CATapDescription(monoGlobalTapButExcludeProcesses: []) : CATapDescription(monoMixdownOfProcesses: processes)
         description.isPrivate = true
         description.name = "Earshot"
         var status = AudioHardwareCreateProcessTap(description, &tapID)
@@ -142,6 +168,7 @@ final class AudioTap {
 
     /// Follows the app when it adds or drops audio processes during a call.
     func update(processes: [AudioObjectID]) {
+        guard !global else { return }  // on a global tap, the list would be what is left out
         description.processes = processes
         var a = address(kAudioTapPropertyDescription)
         var d = description
@@ -290,10 +317,16 @@ final class MicMix {
     private var pending = [Float](repeating: 0, count: cushion)
     private let echo = LiveEchoCanceller()
     private var cleaned = [Float](repeating: 0, count: LiveEchoCanceller.latency)
+    private var heard = Date.distantPast
+
+    /// The last time the microphone picked up more than room noise.
+    var lastVoice: Date { lock.lock(); defer { lock.unlock() }; return heard }
 
     /// Microphone in, from its own thread.
     func addMic(_ samples: [Float]) {
+        let rms = sqrt(samples.reduce(0) { $0 + $1 * $1 } / Float(max(samples.count, 1)))
         lock.lock(); defer { lock.unlock() }
+        if rms > 0.01 { heard = Date() }
         pending += samples
         if pending.count > 16_000 { pending.removeFirst(pending.count - 16_000) }  // keep the two clocks within 1 s
     }

@@ -101,6 +101,7 @@
 "Could not capture audio (%@, error %d). Check System Settings › Privacy & Security › Screen & System Audio Recording." = "Impossible de capter le son (%@, erreur %d). Vérifiez Réglages Système › Confidentialité et sécurité › Enregistrement de l'écran et de l'audio système.";
 "Earshot cannot use the microphone. Allow it in System Settings › Privacy & Security › Microphone." = "Earshot ne peut pas utiliser le micro. Autorisez-le dans Réglages Système › Confidentialité et sécurité › Micro.";
 "%@ call" = "Appel %@";
+"Phone call" = "Appel téléphonique";
 "This language is not installed on this Mac for Fast subtitles. Pick High, or another spoken language." = "Cette langue n'est pas installée sur ce Mac pour les sous-titres Rapide. Choisissez Élevé, ou une autre langue parlée.";
 "High subtitles are not installed. Install them in Settings." = "Les sous-titres Élevé ne sont pas installés. Installez-les dans les Réglages.";
 "High subtitles stopped: %@" = "Les sous-titres Élevé se sont arrêtés : %@";
