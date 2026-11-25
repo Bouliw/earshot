@@ -5,7 +5,7 @@
 
 # Earshot
 
-[![Tests](https://github.com/Bouliw/earshot/actions/workflows/tests.yml/badge.svg)](https://github.com/Bouliw/earshot/actions/workflows/tests.yml)
+[![Tests](https://github.com/Bouliw/earshot/actions/workflows/tests.yml/badge.svg)](https://github.com/Bouliw/earshot/actions/workflows/tests.yml) [![Release](https://img.shields.io/github/v/release/Bouliw/earshot?sort=semver)](https://github.com/Bouliw/earshot/releases/latest) [![License](https://img.shields.io/github/license/Bouliw/earshot)](LICENSE)
 
 **[Download Earshot for Mac](https://github.com/Bouliw/earshot/releases/latest/download/Earshot.dmg)** · macOS 26 or later, Apple silicon<br>
 **Earshot for Windows:** [x64](https://github.com/Bouliw/earshot/releases/latest/download/Earshot-Windows-x64.zip) · [Arm64](https://github.com/Bouliw/earshot/releases/latest/download/Earshot-Windows-arm64.zip) · Windows 10 or 11, after the call only ([details](#earshot-for-windows))
