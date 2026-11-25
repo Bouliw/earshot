@@ -5,6 +5,8 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -13,6 +15,8 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
     groups:
       swift:
         patterns: ["*"]
